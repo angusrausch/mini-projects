@@ -1,0 +1,123 @@
+# Mini Projects
+
+**Small pieces of code that don't deserve their own repository but I want to share** 
+
+Some may be specific to my setup only but they can be interesting or maybe one could be useful to someone else
+
+---
+
+## Table of contents
+1. [NS-SPAM](#ns-spam)
+2. [Site-Tester](#site-tester)
+3. [Server-Log-Parser](#server-log-parser)
+
+---
+
+### NS-SPAM
+[View Script](./ns-spam.py)
+
+Test performance of low power DNS Nameservers using this tool.
+Stresses the heck out of the system you run it on too
+
+**Dependencies**:
+- Python3
+- nslookup (dnsutils)
+
+**Usage**:
+```bash
+python3 ns-spam.py {args}
+```
+Options:
+| Key | Description | Default |
+|---|-------------|----------|
+| `--nameserver` | IP address of nameserver to test | 
+| `-d` `--domain` | Domain to lookup | google.com |
+| `-i` `--number` | Number of lookup requests to make | 100 |
+| `-r` `--random` | Randomise domain (Adds a subdomain of random characters of a length between 3-7) | False |
+| `-v` `--verbos` | Adds verbose output, includes IP found and time taken per request | False |
+| `-t` `--threads` | Max number of synchronous requests (+-1) | ∞ |
+
+*Required field if default is empty*
+
+**⚠️ Important**
+**Only use NS-SPAM on websites you own or have explicit permission to test. Unauthorized load testing can cause serious issues and may be illegal.**
+
+
+---
+
+### Site-Tester
+[View Script](./site-tester/test_site.py)
+
+Site Tester is a lightweight, no-nonsense tool designed to help you stress test your website quickly and easily. Spin it up with Docker, fire off multiple requests, and see how your site holds up under load — all without complicated setup.
+
+**Features**
+
+- Load test any website URL
+- Follow local links for deeper testing
+- Control number of requests and concurrency
+- Dockerized for easy setup and portability
+- Simple command-line interface  
+- More features planned: detailed reporting, custom headers, scheduling, and more!
+
+**Dependencies**
+- [Docker](https://docs.docker.com/engine/install/)
+
+**Docker**
+Site-Tester uses Docker to manage dependencies and make it easier to run. Follow the below steps to run
+- Build the docker image (only done once per version)
+    ```bash
+    docker build -t site-tester ./site-tester
+    ```
+- Run the container
+    ```
+    docker run {docker-args} site_test {python-args}
+    ```
+**Docker Parameters**
+| Flag    | Description                        |
+|---------|----------------------------------|
+| `--rm` | Delete container after use         | 
+| `-it`    | Enable interactive mode    |
+
+**Python Parameters**
+| Flag    | Description                        | Default |
+|---------|----------------------------------|---|
+| `--url` | Target URL to test               | 
+| `-f`    | Follow local links on the site    | False |
+| `-n`    | Number of requests to perform     | 100 |
+| `-p`    | Number of concurrent workers      | 10 |
+| `--type`| Type of request ["get", "post"]   | get |
+
+*Required field if default is empty*
+
+**⚠️ Important**
+**Only use Site Tester on websites you own or have explicit permission to test. Unauthorized load testing can cause serious issues and may be illegal.**
+
+---
+
+### Server Log Parser
+
+Made to make fun of someone who was constantly on my Minecraft server. Check logs and see player play time. Used for *Crafty* servers.
+
+**Dependencies**
+- Python
+
+**Pre-requisites**
+- Copy the server log files
+    - Will update to check remote server in future
+
+**Usage**
+```bash
+python3 log_parser.py {args}
+```
+
+**Parameters**
+
+| Flag | Description | Default |
+|---|---|---|
+| `-f` `--file` | Single log file to parse | |
+| `-d` `--directory` | Directory containing log files to parse | |
+| `--player-time` | Find time spent playing from a particular player | | 
+| `--list-players` | List all players who have played on the server | |
+| `--time-slot` | Time slot `{start end}` to check within. Monday-Friday | |
+
+*File or Directory required*
