@@ -10,6 +10,7 @@ Some may be specific to my setup only but they can be interesting or maybe one c
 1. [NS-SPAM](#ns-spam)
 2. [Site-Tester](#site-tester)
 3. [Server-Log-Parser](#server-log-parser)
+4. [SSH-Helper](#ssh-helper)
 
 ---
 
@@ -121,3 +122,57 @@ python3 log_parser.py {args}
 | `--time-slot` | Time slot `{start end}` to check within. Monday-Friday | |
 
 *File or Directory required*
+
+---
+
+### SSH Helper
+Automate SSH setup and management tasks with this script. SSH Helper streamlines key generation, distributes public keys to multiple hosts, and helps configure bastion and proxy hosts—all with minimal manual effort.
+
+**Features**
+- Generate SSH keys
+- Copy public keys to all hosts in `~/.ssh/config.d`
+- Use `sshpass` for password-based key transfer **(only applies to key copying with `-k`/`--key`; Linux/macOS only)**
+- Configure bastion hosts and proxy connections automatically
+
+**Usage**
+```bash
+python3 ssh_helper.py [options]
+```
+
+**Options**
+| Flag                | Description                                               |
+|---------------------|----------------------------------------------------------|
+| `-k`, `--key`       | Path to SSH key file to transfer                         |
+| `-s`, `--sshpass`   | Use sshpass for password-based key transfer (only with `-k`) |
+| `-b`, `--bastion`   | Transfer config to hosts with "bastion" in their name    |
+| `-p`, `--proxy`     | Create proxy hosts for external SSH access               |
+
+**Notes**
+- Keys are sent only to hosts in the top-level of `config.d`
+- Proxy hosts are created in `~/.ssh/config.d/proxy/`
+- Verbose output and timeouts help manage offline hosts
+
+**Dependencies**
+- Python3
+- sshpass (optional, only for key copying with `-k`; Linux/macOS only)
+
+**Examples**
+
+- Copy public key to all hosts
+    ```bash
+    python3 ssh_helper.py -k ~/.ssh/id_rsa.pub
+    ```
+- Copy public key using sshpass (password-based transfer)
+    ```bash
+    python3 ssh_helper.py -k ~/.ssh/id_rsa.pub -s
+    ```
+- Configure bastion hosts
+    ```bash
+    python3 ssh_helper.py -b
+    ```
+- Create proxy hosts
+    ```bash
+    python3 ssh_helper.py -p
+    ```
+
+
