@@ -1,0 +1,9 @@
+directories:
+  - path: "./test_files"
+    backup_location: "./test_back"
+    keywords:
+      - "402"
+      - "301"
+    file_type: .vma.gz
+    type: newest
+    limit: 1

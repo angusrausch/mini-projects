@@ -11,6 +11,7 @@ Some may be specific to my setup only but they can be interesting or maybe one c
 2. [Site-Tester](#site-tester)
 3. [Server-Log-Parser](#server-log-parser)
 4. [SSH-Helper](#ssh-helper)
+5. [Backerupperer](#backerupperer)
 
 ---
 
@@ -175,4 +176,66 @@ python3 ssh_helper.py [options]
     python3 ssh_helper.py -p
     ```
 
+---
 
+### Backerupperer
+
+Effortlessly back up multiple directories using rsync! Configure everything in a simple YAML file and run one command to synchronize exactly what you want
+
+[View Script](./backerupperer/backup.sh) | [View YAML Config](./backerupperer/backup.yaml)
+
+### How It Works
+1. Configure which directories and files to back up in `backup.yaml`.
+2. Run the script:  
+   ```
+   bash backerupperer/backup.sh
+   ```
+3. Back up only the newest files, filter by keywords, and set file type limits.
+
+### Example YAML Configuration
+```yaml
+directories:
+    - path: "./test_files"
+      backup_location: "./test_back"
+      keywords:
+          - "402"
+          - "301"
+      file_type: .vma.gz
+      type: newest
+      limit: 1
+    - path: "./other_files"
+      backup_location: "./other_back"
+      # No keywords or file_type: backs up everything in this directory
+```
+**YAML Options Explained:**
+
+| Option            | Description |
+|------------------|-------------|
+| `keywords`        | Only backup files whose names contain these keywords (uses `grep`). |
+| `file_type`       | Limit backup to specific file types (e.g., `.vma.gz`). |
+| `type`            | Defines the backup order. `newest` backs up the newest files first. |
+| `limit`           | How many files per keyword to back up, based on the `type` order. |
+
+### Example Usage
+
+Run a backup with your configuration:
+```
+bash backerupperer/backup.sh
+```
+
+Dry run (shows what would be copied without actually copying):
+```
+bash backerupperer/backup.sh --dry
+```
+
+### Script Options
+
+| Option          | Description                   | Default   |
+|-----------------|-------------------------------|-----------|
+| `--dry`         | Dry run (no files copied)     | Disabled  |
+| `-h`, `--help`  | Show usage information        |           |
+
+### Why Use Backerupperer?
+- No more manual file selection
+- Easy YAML config for flexible backups
+- Ideal for log files, VM images, or any files you want to keep safe
