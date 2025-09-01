@@ -1,6 +1,6 @@
 directories:
-  - path: "./test_files"
-    backup_location: "./test_back"
+  - path: "./backerupperer/test_files"
+    backup_location: "./backerupperer/test_back"
     keywords:
       - "402"
       - "301"

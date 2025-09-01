@@ -234,6 +234,8 @@ bash backerupperer/backup.sh --dry
 | Option          | Description                   | Default   |
 |-----------------|-------------------------------|-----------|
 | `--dry`         | Dry run (no files copied)     | Disabled  |
+| `--delete`      | Delete old file               | Disabled  |
+| `--manual`      | Show progress of transfer     | Disabled  |
 | `-h`, `--help`  | Show usage information        |           |
 
 ### Why Use Backerupperer?
@@ -254,6 +256,8 @@ Custom configs for BASH and ZSH to display different terminal lines.
     - Show directory without taking up whole screen. Once the directory label becomes too long it will shorten by replacing each directory in the chain with `.` to still show depth. Will always show last directory and generally show second last. 
     - Easy distinction whether you are in within your HOME `~` or root `/`
 - I like how the colors look :)
+
+[ZSH](./shell_configs/zshrc) | [BASH](./shell_configs/bashrc)
 
 **Usage**
 - Find which shell you are using 

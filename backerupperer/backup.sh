@@ -131,20 +131,17 @@ for ((i=0; i<NUM_DIRS; i++)); do
         if [[ "$BACKUP_LOCATION" =~ ^[^@]+@[^:]+:.+ ]]; then
           REMOTE_USER_HOST=$(echo "$BACKUP_LOCATION" | cut -d: -f1)
           REMOTE_PATH=$(echo "$BACKUP_LOCATION" | cut -d: -f2-)
-          # List files to delete
           DELETED_FILES=$(ssh "$REMOTE_USER_HOST" "find \"$REMOTE_PATH\" -maxdepth 1 -type f -name \"*${KEYWORD}*\" ! -name \"$(basename "$MATCHED_FILES")\"")
           if [[ -n "$DELETED_FILES" ]]; then
             echo -e "${ORANGE}Files deleted remotely:${NC}"
             while IFS= read -r file; do
               [[ -n "$file" ]] && echo -e "${ORANGE}$file${NC}"
             done <<< "$DELETED_FILES"
-            # Delete files
             ssh "$REMOTE_USER_HOST" "echo \"$DELETED_FILES\" | xargs -d '\n' rm -f --"
           else
             echo -e "${ORANGE}No files to delete remotely.${NC}"
           fi
         else
-          # List files to delete
           DELETED_FILES=$(find "${BACKUP_LOCATION}" -maxdepth 1 -type f -name "*${KEYWORD}*" ! -name "$(basename "$MATCHED_FILES")")
           if [[ -n "$DELETED_FILES" ]]; then
             echo -e "${ORANGE}Files deleted locally:${NC}"
@@ -163,7 +160,5 @@ for ((i=0; i<NUM_DIRS; i++)); do
   fi
 done
 
-echo -e "${GREEN}\nAll backups completed successfully at $(date +"%Y-%m-%d %H:%M:%S")${NC}"
-echo -e "${CYAN}Log file: ${YELLOW}$LOG_FILE${NC}"
 echo -e "${GREEN}\nAll backups completed successfully at $(date +"%Y-%m-%d %H:%M:%S")${NC}"
 echo -e "${CYAN}Log file: ${YELLOW}$LOG_FILE${NC}"
