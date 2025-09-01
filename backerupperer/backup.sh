@@ -9,16 +9,20 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 MAGENTA='\033[0;35m'
+ORANGE='\033[38;5;208m'
 NC='\033[0m' # No Color
 
 DRY=""
+DELETE=false
 
 show_usage() {
   echo -e "${BLUE}Usage: $0 [OPTIONS]${NC}"
   echo ""
   echo -e "${BLUE}Options:${NC}"
-  echo -e "  --dry          ${YELLOW}Dry run - files will not be copied${NC}"
-  echo -e "  -h, --help     ${CYAN}Show this help message${NC}"
+  echo -e "  --dry            ${YELLOW}Dry run - files will not be copied${NC}"
+  echo -e "  --delete         ${YELLOW}Delete any files which match the keyword from the output directory and set rsync delete flag${NC}"
+  echo -e "  --manual         ${YELLOW}Manual run. Shows rsync progress.${NC}"
+  echo -e "  -h, --help       ${CYAN}Show this help message${NC}"
 }
 
 # Parse arguments
@@ -27,6 +31,14 @@ while [[ $# -gt 0 ]]; do
     --dry)
       DRY="--dry-run"
       echo -e "${YELLOW}Running in dry-run mode${NC}"
+      shift
+      ;;
+    --delete)
+      DELETE=true
+      shift
+      ;;
+    --manual)
+      MANUAL=--progress
       shift
       ;;
     -h|--help)
@@ -43,10 +55,14 @@ done
 
 # Prepare logging
 RUN_DIR=$(dirname $(realpath $0))
-CONFIG_FILE="backup.yaml"
+CONFIG_FILE="${RUN_DIR}/backup.yaml"
 LOG_DIR=$(yq '.log_dir' "$CONFIG_FILE")
 mkdir -p "${LOG_DIR}"
 LOG_FILE="${LOG_DIR}/backup_$(date +"%Y-%m-%d_%H-%M-%S").log"
+
+if $DELETE; then
+  DELETE_FLAG=--delete
+fi
 
 # Redirect all output to tee (stdout + log file)
 exec > >(tee -a "$LOG_FILE") 2>&1
@@ -84,7 +100,7 @@ for ((i=0; i<NUM_DIRS; i++)); do
       echo -e "${YELLOW}Selecting newest $LIMIT files${NC}"
     fi
     echo -e "${BLUE}Files to backup:${NC}\n$MATCHED_FILES"
-    rsync -avzhr --delete --delay-updates ${DRY} ${MATCHED_FILES} ${BACKUP_LOCATION}
+    rsync -avzhr ${MANUAL} ${DELETE_FLAG} --delay-updates ${DRY} ${MATCHED_FILES} ${BACKUP_LOCATION}
     echo -e "${GREEN}Backup completed for directory $DIR_PATH${NC}"
   else
     KEYWORDS=($(yq ".directories[$i].keywords[]" "$CONFIG_FILE"))
@@ -106,11 +122,48 @@ for ((i=0; i<NUM_DIRS; i++)); do
         echo -e "${YELLOW}Selecting newest $LIMIT files for keyword $KEYWORD${NC}"
       fi
       echo -e "${BLUE}Files to backup for keyword $KEYWORD:${NC}\n$MATCHED_FILES"
-      rsync -avzhr --delete --delay-updates ${DRY} ${MATCHED_FILES} ${BACKUP_LOCATION}
+      rsync -avzhr ${MANUAL} ${DELETE_FLAG} --delay-updates ${DRY} ${MATCHED_FILES} ${BACKUP_LOCATION}
       echo -e "${GREEN}Backup completed for keyword $KEYWORD${NC}"
+
+      if [[ $DRY != true && $DELETE == true ]]; then
+        echo -e "\n${YELLOW}Deleting previous matching files${NC}"
+
+        if [[ "$BACKUP_LOCATION" =~ ^[^@]+@[^:]+:.+ ]]; then
+          REMOTE_USER_HOST=$(echo "$BACKUP_LOCATION" | cut -d: -f1)
+          REMOTE_PATH=$(echo "$BACKUP_LOCATION" | cut -d: -f2-)
+          # List files to delete
+          DELETED_FILES=$(ssh "$REMOTE_USER_HOST" "find \"$REMOTE_PATH\" -maxdepth 1 -type f -name \"*${KEYWORD}*\" ! -name \"$(basename "$MATCHED_FILES")\"")
+          if [[ -n "$DELETED_FILES" ]]; then
+            echo -e "${ORANGE}Files deleted remotely:${NC}"
+            while IFS= read -r file; do
+              [[ -n "$file" ]] && echo -e "${ORANGE}$file${NC}"
+            done <<< "$DELETED_FILES"
+            # Delete files
+            ssh "$REMOTE_USER_HOST" "echo \"$DELETED_FILES\" | xargs -d '\n' rm -f --"
+          else
+            echo -e "${ORANGE}No files to delete remotely.${NC}"
+          fi
+        else
+          # List files to delete
+          DELETED_FILES=$(find "${BACKUP_LOCATION}" -maxdepth 1 -type f -name "*${KEYWORD}*" ! -name "$(basename "$MATCHED_FILES")")
+          if [[ -n "$DELETED_FILES" ]]; then
+            echo -e "${ORANGE}Files deleted locally:${NC}"
+            while IFS= read -r file; do
+              [[ -n "$file" ]] && echo -e "${ORANGE}$file${NC}"
+              rm -f -- "$file"
+            done <<< "$DELETED_FILES"
+          else
+            echo -e "${ORANGE}No files to delete locally.${NC}"
+          fi
+        fi
+        echo -e "${GREEN}Files Successfully Deleted${NC}"
+      fi
+
     done
   fi
 done
 
+echo -e "${GREEN}\nAll backups completed successfully at $(date +"%Y-%m-%d %H:%M:%S")${NC}"
+echo -e "${CYAN}Log file: ${YELLOW}$LOG_FILE${NC}"
 echo -e "${GREEN}\nAll backups completed successfully at $(date +"%Y-%m-%d %H:%M:%S")${NC}"
 echo -e "${CYAN}Log file: ${YELLOW}$LOG_FILE${NC}"
