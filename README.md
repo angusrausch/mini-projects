@@ -12,6 +12,7 @@ Some may be specific to my setup only but they can be interesting or maybe one c
 3. [Server-Log-Parser](#server-log-parser)
 4. [SSH-Helper](#ssh-helper)
 5. [Backerupperer](#backerupperer)
+6. [Shell-Config](#shell-config)
 
 ---
 
@@ -239,3 +240,64 @@ bash backerupperer/backup.sh --dry
 - No more manual file selection
 - Easy YAML config for flexible backups
 - Ideal for log files, VM images, or any files you want to keep safe
+
+---
+
+### Shell-Config
+
+Custom configs for BASH and ZSH to display different terminal lines.
+
+**Features:**
+- Git Branch
+    - Displays current branch with symbol if it is not detected to be main branch
+- Directory
+    - Show directory without taking up whole screen. Once the directory label becomes too long it will shorten by replacing each directory in the chain with `.` to still show depth. Will always show last directory and generally show second last. 
+    - Easy distinction whether you are in within your HOME `~` or root `/`
+- I like how the colors look :)
+
+**Usage**
+- Find which shell you are using 
+    ```bash
+    echo $SHELL
+    ```
+- **`zsh`**
+    - **TEST IT WORKS ON YOUR SYSTEM**
+        PLEASE DO THIS 
+        - Temporarily change the interpreter
+            ```bash
+            source ./shell_config/zshrc
+            ```
+        - Change to a couple directories
+        - Change to a directory with a git repo
+    - Create backup of your current `.zshrc` 
+        ```bash
+        cp ~/.zshrc ~/.zshrc-bak
+        ```
+    - Copy the `zshrc` to your home directory and rename `.zshrc`
+        ```bash
+        cp ./shell_config/zshrc ~/.zshrc
+        ```
+        If prompted confirm to overwrite file
+    - Will use this source automatically on a shell opening
+
+- **`bash`**
+    - **TEST IT WORKS ON YOUR SYSTEM**
+        PLEASE DO THIS 
+        - Temporarily source the config
+            ```bash
+            source ./shell_config/bashrc
+            ```
+        - Change to a couple directories
+        - Change to a directory with a git repo
+    - Create backup of your current `.bashrc` 
+        ```bash
+        cp ~/.bashrc ~/.bashrc-bak
+        ```
+    - Copy the `bashrc` to your home directory and rename `.bashrc`
+        ```bash
+        cp ./shell_config/bashrc ~/.bashrc
+        ```
+        If prompted confirm to overwrite file
+    - Will use this source automatically on a shell opening
+
+---

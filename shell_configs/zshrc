@@ -1,0 +1,74 @@
+export PATH="/opt/homebrew/opt/python@3.11/bin:$PATH"
+
+
+function parse_git_branch() {
+  branch=$(git symbolic-ref HEAD 2>/dev/null | awk 'BEGIN{FS="/"} {print $NF}')
+  if [[ ! -z $branch ]]; then
+    if [[ "$branch" == "main" || "$branch" == "production" || "$branch" == "master" ]]; then
+      echo "[$branch]"
+    else
+      echo "[\ue725 $branch] "
+    fi
+  fi
+}
+
+
+function parse_dir() {
+  local dir="$PWD"
+
+  if [[ "$dir" == "$HOME"* ]]; then
+    dir="~${dir#$HOME}"
+  fi
+
+  local dir_parts=($(echo "$dir" | awk -F'/' '{for (i=1; i<=NF; i++) print $i}'))
+  # local length=$(printf "%s\n" "${dir_parts[-2]}" "${dir_parts[-1]}" | wc -c)
+  
+
+  local depth=${#dir_parts[@]}
+  if [[ $depth -gt 2 ]]; then
+    local beginner=""
+    if [[ $dir == "~"* ]]; then
+      beginner="~"
+    fi
+    local dots=""
+    for ((i = 1; i <= depth - 3; i++)); do
+      dots+="."
+    done
+
+    local length=$((${#dir_parts[-2]} + ${#dir_parts[-1]}))
+    if [[ $length -lt 20 ]]; then
+      echo "${beginner}${dots}/${dir_parts[-2]}/${dir_parts[-1]}"
+    else
+      echo "${beginner}${dots}./${dir_parts[-1]}"
+    fi
+  else
+    echo "$dir"
+  fi
+}
+
+function print_cat() {
+  echo "\ueeed"
+}
+
+COLOR_CAT=$'%F{13}'
+PROMPT_CRE='%{${COLOR_CAT}%}$(print_cat)'
+
+COLOR_DIR=$'%f'
+PROMPT_DIR='%{${COLOR_DIR}%}$(parse_dir)'
+
+COLOR_USR=$'\033[38;5;227m'
+PROMPT_USR='%{${COLOR_USR}%}%n@%m%'
+
+COLOR_GIT=$'%F{39}'
+PROMPT_GIT='%{${COLOR_GIT}%}$(parse_git_branch)'
+
+COLOR_END=$'%F{8}'
+COLOR_INP=$'%f'
+PROMPT_END='%{%{${COLOR_END}%}>%{${COLOR_INP}%}'
+
+setopt PROMPT_SUBST
+export PROMPT="${PROMPT_USR}  ${PROMPT_DIR} ${PROMPT_GIT}${PROMPT_END}"
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
