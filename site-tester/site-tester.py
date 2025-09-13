@@ -37,6 +37,8 @@ class AsyncApp:
         self.payload = AsyncApp.check_payload(args.payload)
         self.filters = ["http", "static/", "cdn/", "googleapis", "."]
         self.link_regex = re.compile(r'href="([^"]*)"')
+        self.verify_ssl = args.ignore_ssl
+        self.timeout = args.timeout
 
         self.reply_options()
 
@@ -68,6 +70,10 @@ class AsyncApp:
         string += f"{YELLOW}Continuing will make {BOLD}{BLUE}{self.total_requests}{RESET} {YELLOW}requests to the server using {BOLD}{BLUE}{self.concurrency}{RESET} {YELLOW}threads{RESET}\n"
         if self.follow_links:
             string += f"{YELLOW}You have also selected to follow a random link on the page{RESET}\n"
+        if self.timeout != 10:
+            string += f"{YELLOW}Request timeout has been set at {self.timeout}.{RESET}\n"
+        if not self.verify_ssl:
+            string += f"{YELLOW}Ignoring SSL errors{RESET}\n"
 
         # Print splash
         print(ascii_banner)
@@ -114,15 +120,17 @@ class AsyncApp:
         print(f"{YELLOW}Probing: {BLUE}{self.url}{RESET}")
         try:
             start = time.perf_counter()
-            response = httpx.get(self.url, timeout=10)
+            response = httpx.get(self.url, timeout=self.timeout, verify=self.verify_ssl)
             duration = time.perf_counter() - start
-            return response.status_code == 200, duration
         except Exception as e:
             print(f"{RED}Error probing URL: {e}{RESET}")
             return False, 0
+        else:
+            print(f"{GREEN}Connected to {BLUE}{self.url} {GREEN}(initial check in {BLUE}{duration:.2f}{GREEN}s){RESET}")
+            return response.status_code == 200
 
     async def run(self):
-        ok, self.check_time = self.check_url()
+        ok = self.check_url()
         if not ok:
             print("Initial URL check failed.")
             return
@@ -141,7 +149,7 @@ class AsyncApp:
 
     async def worker(self, request_count):
         url = self.url
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=self.timeout, verify=self.verify_ssl) as client:
             for _ in range(request_count):
                 url = await self.make_request(url, client)
 
@@ -187,7 +195,6 @@ class AsyncApp:
 
         avg = mean(self.times)
         max_time = max(self.times)
-        print(f"{GREEN}Connected to {BLUE}{self.url} {GREEN}(initial check in {BLUE}{self.check_time:.2f}{GREEN}s){RESET}")
 
         print(f"\n{GREEN}Completed {BLUE}{len(self.times)}{GREEN} requests.{RESET}")
         print(f"{GREEN}Average response time: {BLUE}{avg:.3f}{GREEN}s{RESET}")
@@ -204,6 +211,8 @@ if __name__ == "__main__":
     parser.add_argument("-p", "--processes", type=int, default=10, help="Number of concurrent workers")
     parser.add_argument("--type", type=str, choices=["get", "post"], default="get", help="HTTP method to use: get or post")
     parser.add_argument("--payload", type=str, default="", help="Raw JSON or path to file with JSON")
+    parser.add_argument("--ignore-ssl", action="store_false", help="Disable SSL check")
+    parser.add_argument("--timeout", type=int, default=10, help="Timeout for each individual request before failing in seconds")
     args = parser.parse_args()
     app = AsyncApp(args)
     asyncio.run(app.run())

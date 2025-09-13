@@ -1,8 +1,8 @@
 FROM python:3.12
 
-RUN pip install requests httpx
+RUN pip install httpx
 
 WORKDIR /app
-COPY ./test_site.py /app
+COPY ./site-tester.py /app
 
-ENTRYPOINT [ "python", "/app/test_site.py" ]
+ENTRYPOINT [ "python", "/app/site-tester.py" ]

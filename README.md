@@ -49,7 +49,7 @@ Options:
 ---
 
 ### Site-Tester
-[View Script](./site-tester/test_site.py)
+[View Script](./site-tester/site-tester.py)
 
 Site Tester is a lightweight, no-nonsense tool designed to help you stress test your website quickly and easily. Spin it up with Docker, fire off multiple requests, and see how your site holds up under load — all without complicated setup.
 
@@ -64,6 +64,9 @@ Site Tester is a lightweight, no-nonsense tool designed to help you stress test 
 
 **Dependencies**
 - [Docker](https://docs.docker.com/engine/install/)
+    OR
+- Python3  
+    - pip: httpx
 
 **Docker**
 Site-Tester uses Docker to manage dependencies and make it easier to run. Follow the below steps to run
@@ -73,13 +76,19 @@ Site-Tester uses Docker to manage dependencies and make it easier to run. Follow
     ```
 - Run the container
     ```
-    docker run {docker-args} site_test {python-args}
+    docker run {docker-args} site-tester {python-args}
     ```
 **Docker Parameters**
 | Flag    | Description                        |
 |---------|----------------------------------|
 | `--rm` | Delete container after use         | 
 | `-it`    | Enable interactive mode    |
+
+**Running**
+- To run without docker use
+    ```bash
+    site-tester.py {python-args}
+    ```
 
 **Python Parameters**
 | Flag    | Description                        | Default |
@@ -89,6 +98,8 @@ Site-Tester uses Docker to manage dependencies and make it easier to run. Follow
 | `-n`    | Number of requests to perform     | 100 |
 | `-p`    | Number of concurrent workers      | 10 |
 | `--type`| Type of request ["get", "post"]   | get |
+| `--timeout` | Set timeout in seconds for requests | 10 |
+| `--ignore-ssl` | Ignore SSL errors | False |
 
 *Required field if default is empty*
 
