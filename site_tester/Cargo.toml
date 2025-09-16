@@ -1,0 +1,9 @@
+[package]
+name = "site_tester"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+atty = "0.2.14"
+clap = "4.5.47"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
