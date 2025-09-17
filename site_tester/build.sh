@@ -77,4 +77,3 @@ fi
 rm -f build_linux.err
 
 echo -e "${GREEN}Builds completed successfully.${RESET}"
-

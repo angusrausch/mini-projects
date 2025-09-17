@@ -1,8 +1,9 @@
 use atty::Stream;
 use clap::{Arg, ArgAction, Command};
-use std::{collections::btree_map::Range, io, process::exit, thread, time::Duration, time::Instant};
 use reqwest::{blocking, StatusCode};
-use std::sync::Arc;
+use std::{
+    io, iter::Skip, process::exit, sync::Arc, thread, time::{Duration, Instant}
+};
 
 const RED: &str     = "\x1b[31m";
 const GREEN: &str   = "\x1b[32m";
@@ -23,16 +24,19 @@ struct Config {
     method: String,
     payload: String,
     ignore_ssl: bool,
-    timeout: u16, // store as microseconds
+    timeout: u16, // store as milliseconds
     verbose: bool,
+    skip_confirm: bool,
 }
 
 impl Config {
     fn from_matches(matches: &clap::ArgMatches) -> Self {
         let timeout_secs = *matches.get_one::<f32>("timeout").unwrap();
         let timeout_ms = (timeout_secs * 1000.0) as u16;
+        let url = matches.get_one::<String>("url").unwrap().to_string();
+        let url = normalise_url(url, matches.get_flag("force-url"));
         Self {
-            url: matches.get_one::<String>("url").unwrap().to_string(),
+            url,
             follow_links: matches.get_flag("follow-links"),
             number: *matches.get_one::<u32>("number").unwrap(),
             processes: *matches.get_one::<u32>("processes").unwrap(),
@@ -40,8 +44,19 @@ impl Config {
             payload: matches.get_one::<String>("payload").unwrap().to_string(),
             ignore_ssl: matches.get_flag("ignore-ssl"),
             timeout: timeout_ms,
-            verbose: matches.get_flag("verbose")
+            verbose: matches.get_flag("verbose"),
+            skip_confirm: matches.get_flag("skip-confirm"),
         }
+    }
+}
+
+fn normalise_url(url: String, force_url: bool) -> String {
+    if force_url {
+        url
+    } else if ["https://", "http://"].iter().any(|s| url.starts_with(*s)) {
+        url
+    } else {
+        format!("https://{}", url)
     }
 }
 
@@ -109,6 +124,18 @@ fn main() {
                 .short('v')
                 .long("verbose")
                 .help("Verbose output for requests")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("force-url")
+                .long("force-url")
+                .help("Do not overwrite invalid URL")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("skip-confirm")
+                .long("skip-confirm")
+                .help("None interactive. Skips confirm step")
                 .action(ArgAction::SetTrue)
         )
         .get_matches();
@@ -117,12 +144,31 @@ fn main() {
 
     menu(&config);
 
-    let url = Arc::new(config.url);
-    let times = make_requests(url, config.number, config.processes, config.ignore_ssl, config.timeout, config.verbose);
+    let url = Arc::new(config.url.clone());
+
+    let client = blocking::Client::builder()
+        .timeout(Duration::from_millis(config.timeout.into()))
+        .danger_accept_invalid_certs(config.ignore_ssl)
+        .build()
+        .expect("Failed to build client");
+
+    let client = Arc::new(client);
+
+    let times = make_requests(
+        url,
+        config.number,
+        config.processes,
+        Arc::clone(&client),
+        config.verbose,
+    );
 
     let (average_value, fails, max_time) = get_average(&times);
-    println!("{GREEN}Completed a total of {BLUE}{number_requests}{GREEN} requests, with an average time of {BLUE}{:?}{GREEN} for successful requests and {BLUE}{fails}{GREEN} failed requests and a max request time of {BLUE}{:?}{GREEN}", 
-        average_value, max_time,
+    println!(
+        "{GREEN}Completed a total of {BLUE}{number_requests}{GREEN} requests, \
+        with an average time of {BLUE}{:?}{GREEN} for successful requests and \
+        {BLUE}{fails}{GREEN} failed requests and a max request time of {BLUE}{:?}{GREEN}",
+        average_value,
+        max_time,
         number_requests = config.number
     );
 }
@@ -137,7 +183,8 @@ fn menu(config: &Config) {
     ____) |_| |_   | |  | |____   | |  | |____ ____) |  | |  | |____| | \\ \\ 
    |_____/|_____|  |_|  |______|  |_|  |______|_____/   |_|  |______|_|  \\_\\
 {RESET}
-");
+"
+    );
 
     println!("{}", ascii_banner);
 
@@ -148,17 +195,16 @@ fn menu(config: &Config) {
     message.push_str(&format!(
         "{YELLOW}This application should only be run on websites you have permission from the owner to use.{RESET}\n"
     ));
-    // Normalise URL here
     message.push_str(&format!(
         "{YELLOW}You have selected website {BOLD}{BLUE}{url}{RESET}{YELLOW} to run on.{RESET}\n",
         url = config.url
     ));
     message.push_str(&format!(
-        "{YELLOW}Continuing will make {BOLD}{BLUE}{total_requests}{RESET}{YELLOW} requests to the server using {BOLD}{BLUE}{total_processes}{RESET}{YELLOW} threads.{RESET}\n",
+        "{YELLOW}Continuing will make {BOLD}{BLUE}{total_requests}{RESET}{YELLOW} requests \
+        using {BOLD}{BLUE}{total_processes}{RESET}{YELLOW} threads.{RESET}\n",
         total_requests = config.number,
         total_processes = config.processes
     ));
-    // Follow links randomly (probably won't implement on this version)
     if config.timeout != 10000 {
         message.push_str(&format!(
             "{YELLOW}Using custom timeout value of {BOLD}{BLUE}{timeout}{RESET}{YELLOW} seconds.{RESET}\n",
@@ -166,37 +212,43 @@ fn menu(config: &Config) {
         ));
     }
     if config.ignore_ssl {
-        message.push_str(&format!(
-            "{YELLOW}Ignoring any SSL errors{RESET}\n"
-        ));
+        message.push_str(&format!("{YELLOW}Ignoring any SSL errors{RESET}\n"));
     }
 
     println!("{}", message);
 
-    // Unsure if this works
-    if atty::is(Stream::Stdin) {
+    if atty::is(Stream::Stdin) && atty::is(Stream::Stdout) && ! config.skip_confirm {
+        // Interactive mode
         println!("\n{YELLOW}Press enter to begin or \"exit\" and enter to exit{RESET}");
-        
-        let mut input = String::new();
-        io::stdin()
-            .read_line(&mut input)
-            .expect("Failed to read line");
 
-        if input.trim() == "" {
-            println!("\n{YELLOW}Starting Program{RESET}");
-        } else if input.trim() == "exit" {
-            println!("\n{GREEN}Exiting Gracefully{RESET}");
-            exit(0)
-        } else {
-            println!("\n{RED}Unknown Selection{RESET}\n{GREEN}Exiting Gracefully{RESET}");
-            exit(0)
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).expect("Failed to read line");
+
+        match input.trim() {
+            "" => println!("\n{YELLOW}Starting Program{RESET}"),
+            "exit" => {
+                println!("\n{GREEN}Exiting Gracefully{RESET}");
+                exit(0);
+            }
+            _ => {
+                println!("\n{RED}Unknown Selection{RESET}\n{GREEN}Exiting Gracefully{RESET}");
+                exit(0);
+            }
         }
     } else {
-        println!("\n{ORANGE}Non-interactive mode detected{RESET}\n");
+        // Non-interactive mode (like in your bash script)
+        println!("\n{ORANGE}Non-interactive mode detected, starting program automatically{RESET}\n");
     }
+
 }
 
-fn make_requests(url: Arc<String>, number: u32, threads: u32, ignore_cert: bool, timeout: u16, verbose: bool) -> Vec<u32> {
+fn make_requests(
+    url: Arc<String>,
+    number: u32,
+    threads: u32,
+    client: Arc<blocking::Client>,
+    verbose: bool,
+) -> Vec<u32> {
     let mut times: Vec<u32> = vec![0; number as usize];
     let number_per_thread = number / threads;
     let remainder = number % threads;
@@ -204,13 +256,13 @@ fn make_requests(url: Arc<String>, number: u32, threads: u32, ignore_cert: bool,
 
     for i in 0..threads {
         let url_arc = Arc::clone(&url);
+        let client_arc = Arc::clone(&client);
         let requests_for_this_thread = number_per_thread + if i < remainder { 1 } else { 0 };
         children.push(thread::spawn(move || {
-            process(&url_arc, requests_for_this_thread, ignore_cert, timeout, verbose)
+            process(&url_arc, requests_for_this_thread, client_arc, verbose)
         }));
     }
 
-    // Collect results from threads
     let mut idx = 0;
     for child in children {
         let thread_times = child.join().expect("Thread panicked");
@@ -225,41 +277,28 @@ fn make_requests(url: Arc<String>, number: u32, threads: u32, ignore_cert: bool,
     times
 }
 
-fn process(url: &Arc<String>, number: u32, ignore_cert: bool, timeout: u16, verbose: bool) -> Vec<u32> {
+fn process(url: &Arc<String>, number: u32, client: Arc<blocking::Client>, verbose: bool,) -> Vec<u32> {
     let mut thread_times: Vec<u32> = vec![0; number as usize];
-    let client = blocking::Client::builder()
-        .timeout(Duration::from_millis(timeout.into()))
-        .danger_accept_invalid_certs(ignore_cert)
-        .build()
-        .expect("Failed to build client");
 
     for index in 0..number {
-        thread_times[index as usize] = {
+        let start = Instant::now();
+        let resp = client.get(url.as_str()).send();
+        let duration = start.elapsed().as_micros() as u32;
 
-            let start = Instant::now();
-
-            let resp = client.get(url.as_str()).send();
-            
-            let duration = start.elapsed().as_micros() as u32;
-
-            match resp {
-                Ok(response) => {
-                    if verbose {
-                        let status: u16 = response.status().as_u16();
-                        if status != 200 {
-                            println!("Status code: {}", status);
-                        }
-                    }
-                    duration
+        thread_times[index as usize] = match resp {
+            Ok(response) => {
+                if verbose && response.status() != StatusCode::OK {
+                    println!("Status code: {}", response.status());
                 }
-                Err(e) => {
-                    if verbose {
-                        println!("Request failed: {}", e);
-                    }
-                    0
-                }
+                duration
             }
-        }
+            Err(e) => {
+                if verbose {
+                    println!("Request failed: {}", e);
+                }
+                0
+            }
+        };
     }
 
     thread_times
