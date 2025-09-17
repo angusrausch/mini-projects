@@ -23,7 +23,8 @@ struct Config {
     method: String,
     payload: String,
     ignore_ssl: bool,
-    timeout: u16, // store as milliseconds
+    timeout: u16, // store as microseconds
+    verbose: bool,
 }
 
 impl Config {
@@ -39,6 +40,7 @@ impl Config {
             payload: matches.get_one::<String>("payload").unwrap().to_string(),
             ignore_ssl: matches.get_flag("ignore-ssl"),
             timeout: timeout_ms,
+            verbose: matches.get_flag("verbose")
         }
     }
 }
@@ -93,7 +95,7 @@ fn main() {
             Arg::new("ignore-ssl")
                 .long("ignore-ssl")
                 .help("Disable SSL check")
-                .action(ArgAction::SetFalse), // matches Python's store_false
+                .action(ArgAction::SetTrue),
         )
         .arg(
             Arg::new("timeout")
@@ -102,6 +104,13 @@ fn main() {
                 .default_value("10")
                 .value_parser(clap::value_parser!(f32)),
         )
+        .arg(
+            Arg::new("verbose")
+                .short('v')
+                .long("verbose")
+                .help("Verbose output for requests")
+                .action(ArgAction::SetTrue)
+        )
         .get_matches();
 
     let config = Config::from_matches(&matches);
@@ -109,64 +118,58 @@ fn main() {
     menu(&config);
 
     let url = Arc::new(config.url);
-    let times = make_requests(url, config.number, config.processes, config.ignore_ssl, config.timeout);
+    let times = make_requests(url, config.number, config.processes, config.ignore_ssl, config.timeout, config.verbose);
 
-    let (average, fails): (u32, u32) = get_average(&times);
-    println!("{GREEN}Completed a total of {BLUE}{number_requests}{GREEN} requests, with an average time of {BLUE}{average}{GREEN} for successful requests and {BLUE}{fails}{GREEN} failed requests", 
-        number_requests = config.number);
+    let (average_value, fails, max_time) = get_average(&times);
+    println!("{GREEN}Completed a total of {BLUE}{number_requests}{GREEN} requests, with an average time of {BLUE}{:?}{GREEN} for successful requests and {BLUE}{fails}{GREEN} failed requests and a max request time of {BLUE}{:?}{GREEN}", 
+        average_value, max_time,
+        number_requests = config.number
+    );
 }
 
 fn menu(config: &Config) {
     let ascii_banner = format!(
-        "{magenta}{bold}
+        "{MAGENTA}{BOLD}
      _____ _____ _______ ______ _______ ______  _____ _______ ______ _____  
     / ____|_   _|__   __|  ____|__   __|  ____|/ ____|__   __|  ____|  __ \\ 
    | (___   | |    | |  | |__     | |  | |__  | (___    | |  | |__  | |__) |
     \\___ \\  | |    | |  |  __|    | |  |  __|  \\___ \\   | |  |  __| |  _  / 
     ____) |_| |_   | |  | |____   | |  | |____ ____) |  | |  | |____| | \\ \\ 
    |_____/|_____|  |_|  |______|  |_|  |______|_____/   |_|  |______|_|  \\_\\
-{reset}
-",
-        magenta = MAGENTA,
-        bold = BOLD,
-        reset = RESET
-    );
+{RESET}
+");
 
     println!("{}", ascii_banner);
 
     let mut message = String::new();
     message.push_str(&format!(
-        "{yellow}Thank you for using {magenta}Site-Tester{reset}.\n",
-        yellow = YELLOW,
-        magenta = MAGENTA,
-        reset = RESET
+        "{YELLOW}Thank you for using {MAGENTA}Site-Tester{RESET}.\n",
     ));
     message.push_str(&format!(
-        "{yellow}This application should only be run on websites you have permission from the owner to use.{reset}\n",
-        yellow = YELLOW,
-        reset = RESET
+        "{YELLOW}This application should only be run on websites you have permission from the owner to use.{RESET}\n"
     ));
     // Normalise URL here
     message.push_str(&format!(
-        "{yellow}You have selected website {bold}{blue}{url}{reset}{yellow} to run on.{reset}\n",
-        yellow = YELLOW,
-        bold = BOLD,
-        blue = BLUE,
-        url = config.url,
-        reset = RESET
+        "{YELLOW}You have selected website {BOLD}{BLUE}{url}{RESET}{YELLOW} to run on.{RESET}\n",
+        url = config.url
     ));
     message.push_str(&format!(
-        "{yellow}Continuing will make {bold}{blue}{total_requests}{reset}{yellow} requests to the server using {bold}{blue}{total_processes}{reset}{yellow} threads.{reset}\n",
-        yellow = YELLOW,
-        bold = BOLD,
-        blue = BLUE,
+        "{YELLOW}Continuing will make {BOLD}{BLUE}{total_requests}{RESET}{YELLOW} requests to the server using {BOLD}{BLUE}{total_processes}{RESET}{YELLOW} threads.{RESET}\n",
         total_requests = config.number,
-        total_processes = config.processes,
-        reset = RESET
+        total_processes = config.processes
     ));
     // Follow links randomly (probably won't implement on this version)
-    // Custom timeout value
-    // Ignore SSL option
+    if config.timeout != 10000 {
+        message.push_str(&format!(
+            "{YELLOW}Using custom timeout value of {BOLD}{BLUE}{timeout}{RESET}{YELLOW} seconds.{RESET}\n",
+            timeout = config.timeout / 1000
+        ));
+    }
+    if config.ignore_ssl {
+        message.push_str(&format!(
+            "{YELLOW}Ignoring any SSL errors{RESET}\n"
+        ));
+    }
 
     println!("{}", message);
 
@@ -189,31 +192,11 @@ fn menu(config: &Config) {
             exit(0)
         }
     } else {
-        println!("\n{ORANGE}Non-interactive mode detected{RESET}\n",
-            ORANGE = ORANGE, RESET = RESET);
+        println!("\n{ORANGE}Non-interactive mode detected{RESET}\n");
     }
 }
 
-fn make_get_request(client: &blocking::Client, url: &str, ignore_cert: bool, timeout: u16) -> u32 {
-    let start = Instant::now();
-
-    let resp = client.get(url).send();
-    let duration = start.elapsed().as_micros() as u32;
-
-    match resp {
-        Ok(response) => {
-            let status: u16 = response.status().as_u16();
-            // println!("Status code: {}", status);
-            duration
-        }
-        Err(e) => {
-            // println!("Request failed: {}", e);
-            0
-        }
-    }
-}
-
-fn make_requests(url: Arc<String>, number: u32, threads: u32, ignore_cert: bool, timeout: u16) -> Vec<u32> {
+fn make_requests(url: Arc<String>, number: u32, threads: u32, ignore_cert: bool, timeout: u16, verbose: bool) -> Vec<u32> {
     let mut times: Vec<u32> = vec![0; number as usize];
     let number_per_thread = number / threads;
     let remainder = number % threads;
@@ -223,7 +206,7 @@ fn make_requests(url: Arc<String>, number: u32, threads: u32, ignore_cert: bool,
         let url_arc = Arc::clone(&url);
         let requests_for_this_thread = number_per_thread + if i < remainder { 1 } else { 0 };
         children.push(thread::spawn(move || {
-            process(&url_arc, requests_for_this_thread, ignore_cert, timeout)
+            process(&url_arc, requests_for_this_thread, ignore_cert, timeout, verbose)
         }));
     }
 
@@ -242,34 +225,64 @@ fn make_requests(url: Arc<String>, number: u32, threads: u32, ignore_cert: bool,
     times
 }
 
-fn process(url: &Arc<String>, number: u32, ignore_cert: bool, timeout: u16) -> Vec<u32> {
+fn process(url: &Arc<String>, number: u32, ignore_cert: bool, timeout: u16, verbose: bool) -> Vec<u32> {
     let mut thread_times: Vec<u32> = vec![0; number as usize];
     let client = blocking::Client::builder()
         .timeout(Duration::from_millis(timeout.into()))
-        .danger_accept_invalid_certs(!ignore_cert)
+        .danger_accept_invalid_certs(ignore_cert)
         .build()
         .expect("Failed to build client");
 
     for index in 0..number {
-        thread_times[index as usize] = make_get_request(&client, url.as_str(), ignore_cert, timeout);
+        thread_times[index as usize] = {
+
+            let start = Instant::now();
+
+            let resp = client.get(url.as_str()).send();
+            
+            let duration = start.elapsed().as_micros() as u32;
+
+            match resp {
+                Ok(response) => {
+                    if verbose {
+                        let status: u16 = response.status().as_u16();
+                        if status != 200 {
+                            println!("Status code: {}", status);
+                        }
+                    }
+                    duration
+                }
+                Err(e) => {
+                    if verbose {
+                        println!("Request failed: {}", e);
+                    }
+                    0
+                }
+            }
+        }
     }
 
     thread_times
 }
 
-fn get_average(times: &Vec<u32>) -> (u32, u32) {
+fn get_average(times: &Vec<u32>) -> (Duration, u32, Duration) {
     let mut total: u32 = 0;
     let mut successes: u32 = 0;
     let mut fails: u32 = 0;
+    let mut max: u32 = 0;
     for time in times {
         if *time == 0 {
             fails += 1;
         } else {
             successes += 1;
             total += *time;
+            max = max.max(*time);
         }
     }
-    let average: u32 = total / successes;
 
-    return (average, fails);
+    let average: u32 = if successes > 0 { total / successes } else { 0 };
+    let average_value = Duration::from_micros(average as u64);
+    let max = Duration::from_micros(max as u64);
+
+    (average_value, fails, max)
 }
