@@ -1,0 +1,36 @@
+name: Rust
+
+on:
+  push:
+  #   branches: [ "main" ]
+  # pull_request:
+  #   branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Linux x86_64 debug
+        working-directory: ./site_tester
+        run: cargo build --verbose
+
+      - name: Build Linux x86_64 release
+        working-directory: ./site_tester
+        run: cargo build --verbose --release
+
+      - name: Upload release binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: site_tester-release
+          path: ./site_tester/target/release/site_tester
+
+      - name: Upload debug binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: site_tester-debug
+          path: ./site_tester/target/debug/site_tester
