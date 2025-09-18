@@ -26,7 +26,7 @@ jobs:
       - name: Build Windows x86_64 debug
         working-directory: ./site_tester
         run: |
-          rustup target add x86_64-pc-windows-gnu:
+          rustup target add x86_64-pc-windows-gnu
           cargo build --verbose --target x86_64-pc-windows-gnu
 
       - name: Upload release binary
