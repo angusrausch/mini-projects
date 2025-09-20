@@ -1,5 +1,6 @@
-use reqwest::{blocking, StatusCode};
-use std::{sync::Arc, thread, time::{Duration, Instant}};
+use reqwest::blocking;
+use std::{fmt::format, sync::{Arc, Mutex}, time::{Duration, Instant}};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 pub fn normalise_url(url: String, force_url: bool) -> String {
     if force_url {
@@ -21,60 +22,69 @@ pub fn get_client(timeout: u16, ignore_ssl: bool) -> Arc<blocking::Client> {
     Arc::new(client)
 }
 
-pub fn make_requests(url: Arc<String>, number: u32, threads: u32, client: Arc<blocking::Client>, verbose: bool) -> Vec<u32> {
-    let mut times: Vec<u32> = vec![0; number as usize];
+pub fn make_requests<O, E>(
+    url: Arc<String>,
+    number: u32,
+    threads: u32,
+    client: Arc<blocking::Client>,
+    verbose: bool,
+    output: (O, E),
+    times: Arc<Mutex<Vec<u32>>>,
+    cancel_flag: Arc<AtomicBool>,
+)
+where
+    O: Fn(String) + Send + Sync + 'static + Clone,
+    E: Fn(String) + Send + Sync + 'static + Clone,
+{
     let number_per_thread = number / threads;
     let remainder = number % threads;
-    let mut children = vec![];
 
     for i in 0..threads {
         let url_arc = Arc::clone(&url);
         let client_arc = Arc::clone(&client);
+        let output_clone = output.clone();
+        let times_arc = Arc::clone(&times);
+        let cancel_flag = Arc::clone(&cancel_flag);
         let requests_for_this_thread = number_per_thread + if i < remainder { 1 } else { 0 };
-        children.push(thread::spawn(move || {
-            process(&url_arc, requests_for_this_thread, client_arc, verbose)
-        }));
-    }
+        let start_idx = i * number_per_thread + std::cmp::min(i, remainder);
 
-    let mut idx = 0;
-    for child in children {
-        let thread_times = child.join().expect("Thread panicked");
-        for time in thread_times {
-            if idx < times.len() {
-                times[idx] = time;
-                idx += 1;
-            }
-        }
-    }
-
-    times
-}
-
-pub fn process(url: &Arc<String>, number: u32, client: Arc<blocking::Client>, verbose: bool,) -> Vec<u32> {
-    let mut thread_times: Vec<u32> = vec![0; number as usize];
-
-    for index in 0..number {
-        let start = Instant::now();
-        let resp = client.get(url.as_str()).send();
-        let duration = start.elapsed().as_micros() as u32;
-
-        thread_times[index as usize] = match resp {
-            Ok(response) => {
-                if verbose && response.status() != StatusCode::OK {
-                    println!("Status code: {}", response.status());
+        std::thread::spawn(move || {
+            let (out, err) = output_clone;
+            for j in 0..requests_for_this_thread {
+                if cancel_flag.load(Ordering::SeqCst) {
+                    break;
                 }
-                duration
-            }
-            Err(e) => {
-                if verbose {
-                    println!("Request failed: {}", e);
-                }
-                0
-            }
-        };
-    }
+                let idx = start_idx + j;
+                let start = Instant::now();
+                let resp = client_arc.get(url_arc.as_str()).send();
+                let duration = start.elapsed().as_micros() as u32;
+                let mut times_guard = times_arc.lock().unwrap();
 
-    thread_times
+                if resp.is_ok() {
+                    let response = resp.unwrap();
+                    if verbose {
+                        out(format!("Status code: {}", response.status()));
+                    }
+                    times_guard[idx as usize] = duration;
+                } else {
+                    if verbose {
+                        let e = resp.unwrap_err();
+                        let err_msg = format!(
+                            "Request failed at idx {}: {:?}\nURL: {}\nThread: {}\nError: {:?}",
+                            idx, e, url_arc, i, e
+                        );
+                        err(err_msg);
+                    } else {
+                        let err_msg = format!(
+                            "Failed Request Number: {} ", idx
+                        );
+                        err(err_msg);
+                    }
+                    times_guard[idx as usize] = u32::MAX; 
+                }
+            }
+        });
+    }
 }
 
 pub fn get_average(times: &Vec<u32>) -> (Duration, u32, Duration) {
@@ -83,7 +93,7 @@ pub fn get_average(times: &Vec<u32>) -> (Duration, u32, Duration) {
     let mut fails: u32 = 0;
     let mut max: u32 = 0;
     for time in times {
-        if *time == 0 {
+        if *time == 0 || *time == u32::MAX {
             fails += 1;
         } else {
             successes += 1;

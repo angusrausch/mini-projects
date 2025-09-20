@@ -1,6 +1,7 @@
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use site_tester::*;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool};
 use atty::Stream;
 use std::io;
 use std::process::exit;
@@ -61,15 +62,43 @@ pub fn run_cli() {
 
     let client = get_client(config.timeout, config.ignore_ssl);
 
-    let times = make_requests(
+    let times = Arc::new(Mutex::new(vec![0; config.number as usize]));
+    let cancel_flag = Arc::new(AtomicBool::new(false));
+
+    let ok_closure = |msg: String| print_message(msg);
+    let err_closure = |msg: String| print_error(msg);
+
+    make_requests(
         url,
         config.number,
         config.processes,
         Arc::clone(&client),
         config.verbose,
+        (ok_closure, err_closure),
+        Arc::clone(&times),
+        Arc::clone(&cancel_flag),
     );
 
-    let (average_value, fails, max_time) = get_average(&times);
+    let mut last_print: std::time::Instant = std::time::Instant::now();
+    loop {
+        let completed = {
+            let t = times.lock().unwrap();
+            t.iter().filter(|&&x| x != 0).count()
+        };
+        if completed >= config.number as usize {
+            break;
+        }
+        if !config.verbose {
+            if last_print.elapsed().as_millis() >= 500 {
+                println!("{CYAN}{}/{}{RESET}", completed, config.number);
+                last_print = std::time::Instant::now();
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+
+    let times_vec = times.lock().unwrap();
+    let (average_value, fails, max_time) = get_average(&times_vec);
     println!(
         "{GREEN}Completed a total of {BLUE}{number_requests}{GREEN} requests, \
         with an average time of {BLUE}{:?}{GREEN} for successful requests and \
@@ -234,4 +263,12 @@ fn menu(config: &Config) {
         println!("\n{ORANGE}Non-interactive mode detected, starting program automatically{RESET}\n");
     }
 
+}
+
+fn print_error(message: String) {
+    println!("{RED}ERROR: {message}{RESET}");
+}
+
+fn print_message(message: String){
+    println!("{message}");
 }
