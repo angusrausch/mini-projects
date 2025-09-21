@@ -2,6 +2,21 @@ use reqwest::blocking;
 use std::{fmt::format, sync::{Arc, Mutex}, time::{Duration, Instant}};
 use std::sync::atomic::{AtomicBool, Ordering};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Method {
+    Get = 1,
+    Post = 2,
+}
+
+impl Method {
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "post" => Method::Post,
+            _ => Method::Get,
+        }
+    }
+}
+
 pub fn normalise_url(url: String, force_url: bool) -> String {
     if force_url {
         url
@@ -31,6 +46,7 @@ pub fn make_requests<O, E>(
     output: (O, E),
     times: Arc<Mutex<Vec<u32>>>,
     cancel_flag: Arc<AtomicBool>,
+    method: Method,
 )
 where
     O: Fn(String) + Send + Sync + 'static + Clone,
@@ -56,7 +72,12 @@ where
                 }
                 let idx = start_idx + j;
                 let start = Instant::now();
-                let resp = client_arc.get(url_arc.as_str()).send();
+
+                let resp = match method {
+                    Method::Post => client_arc.post(url_arc.as_str()).send(),
+                    Method::Get => client_arc.get(url_arc.as_str()).send(),
+                };
+
                 let duration = start.elapsed().as_micros() as u32;
                 let mut times_guard = times_arc.lock().unwrap();
 

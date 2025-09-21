@@ -1,10 +1,8 @@
-use clap::builder::Str;
 use eframe::egui;
-use site_tester::{get_client, normalise_url, make_requests, get_average};
+use site_tester::{get_client, normalise_url, make_requests, get_average, Method};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::collections::VecDeque;
-use std::thread;
 
 const ASCII_BANNER: &str = r#"
      _____ _____ _______ ______ _______ ______  _____ _______ ______ _____     
@@ -30,6 +28,7 @@ pub struct SiteTesterApp {
     message: String,
     cancel_flag: Arc<AtomicBool>,
     logs: Arc<Mutex<VecDeque<String>>>,
+    method: Method,
 }
 
 impl Default for SiteTesterApp {
@@ -47,6 +46,7 @@ impl Default for SiteTesterApp {
             message: String::new(),
             cancel_flag: Arc::new(AtomicBool::new(false)),
             logs: Arc::new(Mutex::new(VecDeque::with_capacity(LOGS_MAX_CAPACITY))),
+            method: Method::Get,
         }
     }
 }
@@ -73,6 +73,16 @@ impl eframe::App for SiteTesterApp {
                 ui.checkbox(&mut self.verbose, "Verbose Output");
                 ui.label("Timeout (seconds):");
                 ui.add(egui::DragValue::new(&mut self.timeout));
+                ui.label("Method:");
+                egui::ComboBox::from_id_source("method_combo")
+                    .selected_text(match self.method {
+                        Method::Get => "GET",
+                        Method::Post => "POST",
+                    })
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.method, Method::Get, "GET");
+                        ui.selectable_value(&mut self.method, Method::Post, "POST");
+                    });
             });
 
             ui.add_space(8.0);
@@ -189,6 +199,7 @@ impl eframe::App for SiteTesterApp {
                     (ok_closure, err_closure),
                     Arc::clone(&self.times),
                     Arc::clone(&self.cancel_flag),
+                    self.method,
                 );
             }
 

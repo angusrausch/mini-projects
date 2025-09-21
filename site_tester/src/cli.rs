@@ -21,7 +21,7 @@ pub struct Config {
     pub follow_links: bool,
     pub number: u32,
     pub processes: u32,
-    pub method: String,
+    pub method: Method,
     pub payload: String,
     pub ignore_ssl: bool,
     pub timeout: u16, // store as milliseconds
@@ -35,12 +35,13 @@ impl Config {
         let timeout_ms = (timeout_secs * 1000.0) as u16;
         let url = matches.get_one::<String>("url").unwrap().to_string();
         let url = normalise_url(url, matches.get_flag("force-url"));
+        let method_str = matches.get_one::<String>("type").unwrap();
         Self {
             url,
             follow_links: matches.get_flag("follow-links"),
             number: *matches.get_one::<u32>("number").unwrap(),
             processes: *matches.get_one::<u32>("processes").unwrap(),
-            method: matches.get_one::<String>("type").unwrap().to_string(),
+            method: Method::from_str(method_str),
             payload: matches.get_one::<String>("payload").unwrap().to_string(),
             ignore_ssl: matches.get_flag("ignore-ssl"),
             timeout: timeout_ms,
@@ -77,6 +78,7 @@ pub fn run_cli() {
         (ok_closure, err_closure),
         Arc::clone(&times),
         Arc::clone(&cancel_flag),
+        config.method
     );
 
     let mut last_print: std::time::Instant = std::time::Instant::now();
@@ -113,6 +115,11 @@ fn get_arguments() -> ArgMatches {
     Command::new("Async Website Performance Tester")
         .about("Async Website Performance Tester")
         .arg(
+            Arg::new("cli")
+                .long("cli")
+                .help("Run in CLI mode instead of GUI")
+                .action(ArgAction::SetTrue)
+        ).arg(
             Arg::new("url")
                 .long("url")
                 .value_name("URL")
@@ -144,7 +151,7 @@ fn get_arguments() -> ArgMatches {
         )
         .arg(
             Arg::new("type")
-                .long("type")
+                .long("method")
                 .help("HTTP method to use: get or post")
                 .default_value("get")
                 .value_parser(["get", "post"]),
@@ -185,12 +192,6 @@ fn get_arguments() -> ArgMatches {
             Arg::new("skip-confirm")
                 .long("skip-confirm")
                 .help("None interactive. Skips confirm step")
-                .action(ArgAction::SetTrue)
-        )
-        .arg(
-            Arg::new("cli")
-                .long("cli")
-                .help("Run in CLI mode instead of GUI")
                 .action(ArgAction::SetTrue)
         )
         .get_matches()
