@@ -1,0 +1,88 @@
+name: Rust
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  create_release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build_and_upload:
+    needs: create_release
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - name: linux-x86_64
+            runner: ubuntu-latest
+            container: rust:1.90-bullseye
+            target: ""
+            exe_ext: ""
+            cross_deps: "apt-get update && apt-get install -y mingw-w64"
+          - name: linux-arm64
+            runner: ubuntu-24.04-arm
+            container: rustlang/rust:nightly-bullseye
+            target: ""
+            exe_ext: ""
+            cross_deps: ""
+          - name: windows-x86_64
+            runner: ubuntu-latest
+            container: rust:1.90-bullseye
+            target: x86_64-pc-windows-gnu
+            exe_ext: .exe
+            cross_deps: "apt-get update && apt-get install -y mingw-w64"
+          - name: macos-arm64
+            runner: [self-hosted, macos]
+            container: ""
+            target: ""
+            exe_ext: ""
+            cross_deps: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cross-compile dependencies
+        if: matrix.cross_deps != ''
+        run: ${{ matrix.cross_deps }}
+
+      - name: Add target (if needed)
+        if: matrix.target != ''
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build Debug and Release
+        working-directory: ./site_tester
+        run: |
+          cargo build $([[ -n "${{ matrix.target }}" ]] && echo "--target ${{ matrix.target }}")
+          cargo build --release $([[ -n "${{ matrix.target }}" ]] && echo "--target ${{ matrix.target }}")
+
+      - name: Upload Release Assets
+        working-directory: ./site_tester
+        run: |
+          for build in debug release; do
+            exe_name="site_tester-${{ matrix.name }}-${build}${{ matrix.exe_ext }}"
+            path="./target/${build}/site_tester${{ matrix.exe_ext }}"
+            if [[ -f "$path" ]]; then
+              echo "Uploading $exe_name..."
+              gh release upload ${{ needs.create_release.outputs.upload_url }} "$path" --clobber --name "$exe_name" --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+            fi
+          done
