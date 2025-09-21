@@ -1,0 +1,111 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build_x86:
+    runs-on: ubuntu-latest
+    container:
+      image: rust:1.90-bullseye
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Windows cross-compile deps
+        run: apt-get update && apt-get install -y mingw-w64
+
+      # Linux x86_64
+      - name: Build Linux x86_64 debug
+        working-directory: ./site_tester
+        run: cargo build --verbose
+
+      - name: Build Linux x86_64 release
+        working-directory: ./site_tester
+        run: cargo build --verbose --release
+
+      # Windows x86_64
+      - name: Build Windows x86_64 debug
+        working-directory: ./site_tester
+        run: |
+          rustup target add x86_64-pc-windows-gnu
+          cargo build --verbose --target x86_64-pc-windows-gnu
+
+      - name: Build Windows x86_64 release
+        working-directory: ./site_tester
+        run: |
+          rustup target add x86_64-pc-windows-gnu
+          cargo build --verbose --release --target x86_64-pc-windows-gnu
+
+      # Upload artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site_tester-linux-x86_64-release
+          path: ./site_tester/target/release/site_tester
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site_tester-linux-x86_64-debug
+          path: ./site_tester/target/debug/site_tester
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site_tester-windows-x86_64-release
+          path: ./site_tester/target/x86_64-pc-windows-gnu/release/site_tester.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site_tester-windows-x86_64-debug
+          path: ./site_tester/target/x86_64-pc-windows-gnu/debug/site_tester.exe
+
+  build_arm:
+    runs-on: ubuntu-24.04-arm
+    container:
+      image: rustlang/rust:nightly-bullseye
+    steps:
+      - uses: actions/checkout@v4
+
+      # Linux ARM64
+      - name: Build Linux ARM64 debug
+        working-directory: ./site_tester
+        run: cargo build --verbose
+
+      - name: Build Linux ARM64 release
+        working-directory: ./site_tester
+        run: cargo build --verbose --release
+
+      # Upload artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site_tester-linux-arm64-release
+          path: ./site_tester/target/release/site_tester
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site_tester-linux-arm64-debug
+          path: ./site_tester/target/debug/site_tester
+
+  build_macos:
+    runs-on: [self-hosted, macos]
+    steps:
+      - uses: actions/checkout@v4
+
+      # macOS ARM64
+      - name: Build macOS ARM64 debug
+        working-directory: ./site_tester
+        run: cargo build
+
+      - name: Build macOS ARM64 release
+        working-directory: ./site_tester
+        run: cargo build --release
+
+      # Upload artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site_tester-macos-arm64-debug
+          path: ./site_tester/target/debug/site_tester
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site_tester-macos-arm64-release
+          path: ./site_tester/target/release/site_tester
