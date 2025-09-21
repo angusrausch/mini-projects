@@ -2,110 +2,85 @@ name: Rust
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build_x86:
+  create_release:
     runs-on: ubuntu-latest
-    container:
-      image: rust:1.90-bullseye
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Windows cross-compile deps
-        run: apt-get update && apt-get install -y mingw-w64
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
 
-      # Linux x86_64
-      - name: Build Linux x86_64 debug
-        working-directory: ./site_tester
-        run: cargo build --verbose
+  build_and_upload:
+    needs: create_release
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - name: linux-x86_64
+            runner: ubuntu-latest
+            container: rust:1.90-bullseye
+            target: ""
+            exe_ext: ""
+            cross_deps: "apt-get update && apt-get install -y mingw-w64"
+          - name: linux-arm64
+            runner: ubuntu-24.04-arm
+            container: rustlang/rust:nightly-bullseye
+            target: ""
+            exe_ext: ""
+            cross_deps: ""
+          - name: windows-x86_64
+            runner: ubuntu-latest
+            container: rust:1.90-bullseye
+            target: x86_64-pc-windows-gnu
+            exe_ext: .exe
+            cross_deps: "apt-get update && apt-get install -y mingw-w64"
+          - name: macos-arm64
+            runner: [self-hosted, macos]
+            container: ""
+            target: ""
+            exe_ext: ""
+            cross_deps: ""
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Build Linux x86_64 release
-        working-directory: ./site_tester
-        run: cargo build --verbose --release
+      - name: Install cross-compile dependencies
+        if: matrix.cross_deps != ''
+        run: ${{ matrix.cross_deps }}
 
-      # Windows x86_64
-      - name: Build Windows x86_64 debug
+      - name: Add target (if needed)
+        if: matrix.target != ''
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build Debug and Release
         working-directory: ./site_tester
         run: |
-          rustup target add x86_64-pc-windows-gnu
-          cargo build --verbose --target x86_64-pc-windows-gnu
+          cargo build $([[ -n "${{ matrix.target }}" ]] && echo "--target ${{ matrix.target }}")
+          cargo build --release $([[ -n "${{ matrix.target }}" ]] && echo "--target ${{ matrix.target }}")
 
-      - name: Build Windows x86_64 release
+      - name: Upload Release Assets
         working-directory: ./site_tester
         run: |
-          rustup target add x86_64-pc-windows-gnu
-          cargo build --verbose --release --target x86_64-pc-windows-gnu
-
-      # Upload artifacts
-      - uses: actions/upload-artifact@v4
-        with:
-          name: site_tester-linux-x86_64-release
-          path: ./site_tester/target/release/site_tester
-      - uses: actions/upload-artifact@v4
-        with:
-          name: site_tester-linux-x86_64-debug
-          path: ./site_tester/target/debug/site_tester
-      - uses: actions/upload-artifact@v4
-        with:
-          name: site_tester-windows-x86_64-release
-          path: ./site_tester/target/x86_64-pc-windows-gnu/release/site_tester.exe
-      - uses: actions/upload-artifact@v4
-        with:
-          name: site_tester-windows-x86_64-debug
-          path: ./site_tester/target/x86_64-pc-windows-gnu/debug/site_tester.exe
-
-  build_arm:
-    runs-on: ubuntu-24.04-arm
-    container:
-      image: rustlang/rust:nightly-bullseye
-    steps:
-      - uses: actions/checkout@v4
-
-      # Linux ARM64
-      - name: Build Linux ARM64 debug
-        working-directory: ./site_tester
-        run: cargo build --verbose
-
-      - name: Build Linux ARM64 release
-        working-directory: ./site_tester
-        run: cargo build --verbose --release
-
-      # Upload artifacts
-      - uses: actions/upload-artifact@v4
-        with:
-          name: site_tester-linux-arm64-release
-          path: ./site_tester/target/release/site_tester
-      - uses: actions/upload-artifact@v4
-        with:
-          name: site_tester-linux-arm64-debug
-          path: ./site_tester/target/debug/site_tester
-
-  build_macos:
-    runs-on: [self-hosted, macos]
-    steps:
-      - uses: actions/checkout@v4
-
-      # macOS ARM64
-      - name: Build macOS ARM64 debug
-        working-directory: ./site_tester
-        run: cargo build
-
-      - name: Build macOS ARM64 release
-        working-directory: ./site_tester
-        run: cargo build --release
-
-      # Upload artifacts
-      - uses: actions/upload-artifact@v4
-        with:
-          name: site_tester-macos-arm64-debug
-          path: ./site_tester/target/debug/site_tester
-      - uses: actions/upload-artifact@v4
-        with:
-          name: site_tester-macos-arm64-release
-          path: ./site_tester/target/release/site_tester
+          for build in debug release; do
+            exe_name="site_tester-${{ matrix.name }}-${build}${{ matrix.exe_ext }}"
+            path="./target/${build}/site_tester${{ matrix.exe_ext }}"
+            if [[ -f "$path" ]]; then
+              echo "Uploading $exe_name..."
+              gh release upload ${{ needs.create_release.outputs.upload_url }} "$path" --clobber --name "$exe_name" --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+            fi
+          done
