@@ -1,6 +1,15 @@
 *venv/
 *.vscode/
-*/__pycache__/
+*__pycache__/
 */logs/
 *.log
+*.log.*.gz
 *.DS_STORE
+
+markdown-cheat-sheet.md
+
+# TMP
+light-map/
+check_shutdown.sh
+Knights_journey.py
+light.py
