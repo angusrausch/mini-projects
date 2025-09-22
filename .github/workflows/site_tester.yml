@@ -18,7 +18,7 @@ jobs:
         uses: actions/create-release@v1
         with:
           tag_name: ${{ github.ref_name }}
-          release_name: Release ${{ github.sha }}
+          release_name: Release site_tester ${{ github.ref_name }} 
           draft: false
           prerelease: false
         env:
@@ -97,7 +97,7 @@ jobs:
           if [[ -f "$path" ]]; then
             echo "Uploading $exe_name..."
             cp "$path" "$exe_name"
-            gh release upload ${{ github.ref_name }} "$exe_name" --clobber
+            gh release upload "Release site_tester ${{ github.ref_name }}" "$exe_name" --clobber
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
