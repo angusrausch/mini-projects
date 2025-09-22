@@ -52,67 +52,30 @@ jobs:
         if: matrix.target != ''
         run: rustup target add ${{ matrix.target }}
 
-      - name: Build Debug
+      - name: Build Debug and Release
         working-directory: ./site_tester
-        run: cargo build --target ${{ matrix.target }}
+        run: |
+          cargo build --target ${{ matrix.target }}
+          cargo build --release --target ${{ matrix.target }}
 
+      # Upload artifacts only on main branch
       - name: Upload Debug Artifact
+        if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: site_tester-${{ matrix.name }}-debug
           path: ./site_tester/target/${{ matrix.target }}/debug/site_tester${{ matrix.exe_ext }}
 
-  release:
-    # Only run when pushing to main
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      matrix:
-        include:
-          - name: linux-x86_64
-            runner: ubuntu-latest
-            container: rust:1.90-bullseye
-            target: x86_64-unknown-linux-musl
-            exe_ext: ""
-            cross_deps: "sudo apt-get update && sudo apt-get install -y musl-tools"
+      - name: Upload Release Artifact
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: site_tester-${{ matrix.name }}-release
+          path: ./site_tester/target/${{ matrix.target }}/release/site_tester${{ matrix.exe_ext }}
 
-          - name: linux-arm64
-            runner: ubuntu-22.04-arm
-            container: rustlang/rust:nightly-bullseye
-            target: aarch64-unknown-linux-gnu
-            exe_ext: ""
-            cross_deps: ""
-
-          - name: windows-x86_64
-            runner: ubuntu-latest
-            container: rust:1.90-bullseye
-            target: x86_64-pc-windows-gnu
-            exe_ext: .exe
-            cross_deps: "sudo apt-get update && sudo apt-get install -y mingw-w64"
-
-          - name: macos-arm64
-            runner: [self-hosted, macos]
-            container: ""
-            target: aarch64-apple-darwin
-            exe_ext: ""
-            cross_deps: ""
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install cross-compile dependencies
-        if: matrix.cross_deps != ''
-        run: ${{ matrix.cross_deps }}
-
-      - name: Add target
-        if: matrix.target != ''
-        run: rustup target add ${{ matrix.target }}
-
-      - name: Build Release
-        working-directory: ./site_tester
-        run: cargo build --release --target ${{ matrix.target }}
-
+      # Create GitHub Release only on main branch
       - name: Create GitHub Release
+        if: github.ref == 'refs/heads/main' && matrix.name == 'linux-x86_64' # run once
         id: create_release
         uses: actions/create-release@v1
         with:
@@ -124,6 +87,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Release Asset
+        if: github.ref == 'refs/heads/main'
         working-directory: ./site_tester
         run: |
           exe_name="site_tester-${{ matrix.name }}-release${{ matrix.exe_ext }}"
