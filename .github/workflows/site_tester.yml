@@ -8,23 +8,39 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # Step 1: Create a release (only once)
   create_release:
-
+    if: github.ref == 'refs/heads/main'  # change if you want releases on other branches
     runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.set_tag.outputs.tag_name }}
+      release_name: ${{ steps.set_tag.outputs.release_name }}
     steps:
       - uses: actions/checkout@v4
+
+      # Generate a unique tag and release name
+      - id: set_tag
+        run: |
+          TAG="release-${GITHUB_RUN_NUMBER}"
+          RELEASE_NAME="Release site-tester (${GITHUB_REF_NAME}) (${GITHUB_RUN_NUMBER})"
+          echo "tag_name=$TAG" >> $GITHUB_OUTPUT
+          echo "release_name=$RELEASE_NAME" >> $GITHUB_OUTPUT
+
+      # Create the release
       - name: Create GitHub Release
-        id: create_release
+        id: create_release_step
         uses: actions/create-release@v1
         with:
-          tag_name: ${{ github.ref_name }}
-          release_name: Release site_tester ${{ github.ref_name }} 
+          tag_name: ${{ steps.set_tag.outputs.tag_name }}
+          release_name: ${{ steps.set_tag.outputs.release_name }}
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # Step 2: Build and upload artifacts for all platforms
   build:
+    needs: create_release
     runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
@@ -64,7 +80,7 @@ jobs:
         if: matrix.cross_deps != ''
         run: ${{ matrix.cross_deps }}
 
-      - name: Add target
+      - name: Add Rust target
         if: matrix.target != ''
         run: rustup target add ${{ matrix.target }}
 
@@ -74,7 +90,7 @@ jobs:
           cargo build --target ${{ matrix.target }}
           cargo build --release --target ${{ matrix.target }}
 
-      # ✅ Always upload artifacts (all branches)
+      # Always upload artifacts to GitHub Actions
       - name: Upload Debug Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -87,17 +103,18 @@ jobs:
           name: site_tester-${{ matrix.name }}-release
           path: ./site_tester/target/${{ matrix.target }}/release/site_tester${{ matrix.exe_ext }}
 
+      # Upload release assets to GitHub Release (only if release job exists)
       - name: Upload Release Asset
-
+        if: needs.create_release.outputs.tag_name != ''
         working-directory: ./site_tester
         run: |
           exe_name="site_tester-${{ matrix.name }}-release${{ matrix.exe_ext }}"
           path="./target/${{ matrix.target }}/release/site_tester${{ matrix.exe_ext }}"
 
           if [[ -f "$path" ]]; then
-            echo "Uploading $exe_name..."
+            echo "Uploading $exe_name to release ${{ needs.create_release.outputs.release_name }}..."
             cp "$path" "$exe_name"
-            gh release upload "Release site_tester ${{ github.ref_name }}" "$exe_name" --clobber
+            gh release upload "${{ needs.create_release.outputs.tag_name }}" "$exe_name" --clobber
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
