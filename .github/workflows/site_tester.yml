@@ -10,7 +10,6 @@ env:
 jobs:
   # Step 1: Create a release (only once)
   create_release:
-    if: github.ref == 'refs/heads/main'  # change if you want releases on other branches
     runs-on: ubuntu-latest
     outputs:
       tag_name: ${{ steps.set_tag.outputs.tag_name }}
@@ -105,7 +104,6 @@ jobs:
 
       # Upload release assets to GitHub Release (only if release job exists)
       - name: Upload Release Asset
-        if: needs.create_release.outputs.tag_name != ''
         working-directory: ./site_tester
         run: |
           exe_name="site_tester-${{ matrix.name }}-release${{ matrix.exe_ext }}"
