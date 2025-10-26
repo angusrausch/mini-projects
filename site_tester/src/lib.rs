@@ -83,6 +83,9 @@ where
 
                 if resp.is_ok() {
                     let response = resp.unwrap();
+                    if response.status() == 509 {
+                        out(format!("Website bandwidth limit reached"));
+                    }
                     if verbose {
                         out(format!("Status code: {}", response.status()));
                     }
