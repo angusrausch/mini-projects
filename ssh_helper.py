@@ -3,8 +3,10 @@ import re
 import shutil
 from argparse import ArgumentParser
 import subprocess
-import sys
+from pprint import pprint
 from getpass import getpass
+import traceback
+from pathlib import Path
 
 RED     = "\033[31m"
 GREEN   = "\033[32m"
@@ -28,8 +30,7 @@ ascii_banner = fr"""
 """
 
 def main(args):
-    config_path = os.path.expanduser("~/.ssh/config.d")
-
+    config_path = Path("~/.ssh/config.d").expanduser()
     print(ascii_banner)
 
     if args.proxy:
@@ -106,18 +107,34 @@ def get_sshpass_password():
         print(f"{ORANGE}\nExiting...{RESET}")
         exit()
 
-def get_hosts(config_path):
+def get_hosts(config_path, allow_proxies = False):
     hosts = []
-    all_hosts_files = os.listdir(config_path)
+    all_hosts_files = get_configs(config_path)
+
+    if not allow_proxies:
+        all_hosts_files[:] = [file for file in all_hosts_files if "proxy" not in str(file)]
+
     for host_file in all_hosts_files:
-        if os.path.isfile(os.path.join(config_path, host_file)):
-            with open(os.path.join(config_path, host_file), "r") as file:
-                file_contents = file.read()
-                pattern = r'(?i)Host [^\n]+(?:\n\s+[^\n]+)+'
-                found_hosts = re.findall(pattern, file_contents)
-                for host in found_hosts:
-                    hosts.append(host)
+        if host_file.name == ".DS_Store":
+            continue
+        try:
+            with open(host_file, 'r') as file:
+                contents = file.read()
+                hosts.extend(re.split(r"(?=[hH]ost )", contents))
+        except Exception:
+            print(f"{RED}Unable to parse file {host_file}")
+            traceback.print_exc()
     return hosts
+
+def get_configs(path: Path):
+    config_paths = []
+    for item in path.iterdir():
+        if item.is_dir():
+            config_paths.extend(get_configs(item))
+        else:
+            config_paths.append(item)
+    return config_paths
+
 
 def send_hosts(config_path):
     bastions = get_bastions(config_path)
@@ -135,45 +152,45 @@ def get_bastions(config_path):
     all_hosts = get_hosts(config_path)
     bastions = []
     for host in all_hosts:
-        host_names = re.search(r"(?i)Host\s+([^\n]+)", host)
-        host_names = host_names.group(1) if host_names else ''
-        if "bastion" in host_names:
-            host_short = host_names.split(" ")[0]
-            bastions.append(host_short)
+        host_names = [name for line in host.lower().splitlines() if "host " in line for name in line.split(" ")[1:]]
+        if any("bastion" in host_name for host_name in host_names):
+            bastions.append(host_names[0])
     return bastions
 
 def create_proxies(path):
-    proxy_folder = "proxy"
-    ignore_list = [proxy_folder, f"{proxy_folder}-copy", '.DS_Store']
-    
-    all_hosts_files = os.listdir(path)
-    
+    proxy_folder = path / "proxy"
+    ignore_list = [
+        proxy_folder,
+        path / f"{proxy_folder.name}-copy"
+    ]
+
+    all_hosts_files = get_configs(path)
+
+    filtered_files = [
+        f for f in all_hosts_files
+        if f.name != ".DS_Store" and not any(f == ignore_path or f.is_relative_to(ignore_path) for ignore_path in ignore_list)
+    ]
+
     set_proxy_folder(path, proxy_folder)
 
-    ignore_files(ignore_list, all_hosts_files)
-    
     try:
-        make_proxy_files(path, proxy_folder, all_hosts_files)
+        make_proxy_files(path, proxy_folder, filtered_files)
     except Exception as e:
         revert_proxy(path, proxy_folder)
         print(f"{RED}Error has occured: Reverting back to previous version{RESET}")
-        print(e)
-    else:
-        remove_proxy_copy(path, proxy_folder)
+        traceback.print_exc()
+    finally:
+        if (path / f"{proxy_folder.name}-copy").exists():
+            shutil.rmtree(path / f"{proxy_folder.name}-copy")
 
-def set_proxy_folder(path, proxy_folder):
-    proxy_copy_dir = f"{path}/{proxy_folder}-copy"
-    proxy_dir = f"{path}/{proxy_folder}"
-    if os.path.exists(proxy_copy_dir):
+def set_proxy_folder(path: Path, proxy_folder):
+    proxy_copy_dir = path / f"{proxy_folder.name}-copy"
+
+    if proxy_copy_dir.exists():
         shutil.rmtree(proxy_copy_dir)
-    if os.path.exists(proxy_dir):
-        shutil.move(proxy_dir, proxy_copy_dir)
-    os.mkdir(f"{path}/{proxy_folder}")
-
-def ignore_files(ignore_list, all_hosts_files):
-    for ignore_file in ignore_list:
-            if ignore_file in all_hosts_files:
-                all_hosts_files.remove(ignore_file)
+    if proxy_folder.exists():
+        shutil.move(proxy_folder, proxy_copy_dir)
+    os.mkdir(proxy_folder)
 
 def modify_host_line(match, bastion):
     host_keyword = match.group(1)
@@ -182,14 +199,14 @@ def modify_host_line(match, bastion):
     proxy_jump_line = f"    proxyJump {bastion}"    
     return f"{host_keyword} {modified_words}\n{proxy_jump_line}"
 
-def make_proxy_files(config_path, proxy_folder, all_hosts_files):
+def make_proxy_files(config_path, proxy_folder, filtered_files):
     bastions = get_bastions(config_path)
     for bastion in bastions:
         print(f"{YELLOW}Creating proxy SSH Hosts for {BLUE}{bastion}{RESET}")
-        bastion_proxy_path = f"{config_path}/{proxy_folder}/{bastion}"
+        bastion_proxy_path = proxy_folder / bastion
         os.mkdir(bastion_proxy_path)
-        for host_file in all_hosts_files:
-            file = open(f"{config_path}/{host_file}", "r")
+        for host_file in filtered_files:
+            file = open(host_file, "r")
             file_contents = file.read()
 
             new_file_contents = re.sub(
@@ -198,8 +215,7 @@ def make_proxy_files(config_path, proxy_folder, all_hosts_files):
                 file_contents,
                 flags=re.MULTILINE
             )
-
-            proxy_file = open(f"{bastion_proxy_path}/{host_file}", "x")
+            proxy_file = open(bastion_proxy_path / host_file.name, "x")
             proxy_file.write(new_file_contents)
             proxy_file.close()
         print(f"{GREEN}Proxy Hosts created for {BLUE}{bastion}{RESET}")
@@ -219,16 +235,11 @@ def create_config_file(bastions, proxy_folder):
 
 
 def revert_proxy(path, proxy_folder):
-    proxy_copy_dir = f"{path}/{proxy_folder}-copy"
-    proxy_dir = f"{path}/{proxy_folder}"
+    proxy_copy_dir = path / f"{proxy_folder.name}-copy"
     if os.path.exists(proxy_copy_dir):
         if os.path.exists(proxy_folder):
             shutil.rmtree(proxy_folder)
-        shutil.move(proxy_copy_dir, proxy_dir)
-
-def remove_proxy_copy(path, proxy_folder):
-    proxy_copy_dir = f"{path}/{proxy_folder}-copy"
-    shutil.rmtree(proxy_copy_dir)
+        shutil.move(proxy_copy_dir, proxy_folder)
 
 
 if __name__ == "__main__":
