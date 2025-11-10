@@ -58,8 +58,10 @@ def add_keys(config_path, args, timeout = 5):
 def send_keys_to_hosts(hosts, key_path, sshpass, timeout):
     password = get_sshpass_password() if sshpass else None
     for host in hosts:
-        host_short = re.search(r"(?i)Host\s+(\S+)", host)
-        host_short = host_short.group(1) if host_short else ''
+        try:
+            host_short = [name for line in host.lower().splitlines() if "host " in line for name in line.split(" ")[1:]][0]
+        except IndexError:
+            continue
         print(f"{YELLOW}Sending key to Host: {BLUE}{host_short}{RESET}")
         copy_id_command = ["ssh-copy-id", "-i", key_path, host_short]
 
