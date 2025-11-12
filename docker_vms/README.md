@@ -4,6 +4,28 @@
 Used to have redundant machines for my Proxmox VMs
 
 ---
+## Pihole
+
+**Custom Pihole Image with Keepalived and Unbound included**
+
+Acts as a whole machine with an IP address and includes Keepalived to claim a second IP 
+
+### Setup
+
+Before use you have to copy and modify a number of files as below:
+
+- `.env.example` -> `.env`
+    - Follow instructions on each line for how to fill values
+- `keepalived.conf.example` -> `keepalived.conf`
+    - Edit line 8 with the shared IP address
+- `pihole-etc/` (Optional)
+    - If porting from another Pihole instance, copy the entire directory from `/etc/pihole/` to `pihole-etc/`
+    - NOTE: If not porting this directory will be created to persist configuration
+### Usage
+
+Use startup script included in `pihole` directory. Has options `--build`, `--start`, and `--stop`.
+
+---
 
 ## Tinystatus
 
