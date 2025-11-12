@@ -4,6 +4,29 @@
 Used to have redundant machines for my Proxmox VMs
 
 ---
+
+## Bastion
+
+Acts as a whole machine with an IP address
+
+### Setup
+
+Before use you have to copy and modify a number of files as below:
+
+- `.env.example` -> `.env`
+    - Follow instructions on each line for how to fill values
+- `ssh`
+    - Configuration for the use SSH keys. If using pre-made keys/authorized_keys file add to this dir
+    - Will auto generate if not set
+- `bastion_ssh_keys`
+    - Host ssh keys 
+    - Will auto generate if not set
+
+### Usage
+
+Use startup script included in `bastion` directory. Has options `--build`, `--start`, and `--stop`.
+
+---
 ## Pihole
 
 **Custom Pihole Image with Keepalived and Unbound included**
