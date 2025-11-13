@@ -13,6 +13,7 @@ Some may be specific to my setup only but they can be interesting or maybe one c
 4. [SSH-Helper](#ssh-helper)
 5. [Backerupperer](#backerupperer)
 6. [Shell-Config](#shell-config)
+7. [Docker-VMs](#docker-vms)
 
 ---
 
@@ -316,3 +317,9 @@ Custom configs for BASH and ZSH to display different terminal lines.
     - Will use this source automatically on a shell opening
 
 ---
+
+### Docker VMs
+
+**Docker containers to act like virtual machines**
+
+More information and instructions [HERE](./docker_vms/README.md) 
