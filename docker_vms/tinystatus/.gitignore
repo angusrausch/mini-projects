@@ -1,0 +1,6 @@
+.env
+checks.yaml
+*.html
+history.json
+incidents.md
+keepalived.conf

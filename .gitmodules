@@ -1,0 +1,3 @@
+[submodule "docker_vms/microstatus/external"]
+	path = docker_vms/microstatus/external
+	url = git@github.com:angusrausch/microstatus.git
