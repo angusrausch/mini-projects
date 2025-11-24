@@ -51,57 +51,41 @@ Options:
 ### Site-Tester
 [View Script](./site-tester/site-tester.py)
 
-Site Tester is a lightweight, no-nonsense tool designed to help you stress test your website quickly and easily. Spin it up with Docker, fire off multiple requests, and see how your site holds up under load — all without complicated setup.
+Site Tester is a lightweight, no-nonsense tool designed to help you stress test your website quickly and easily. Containing a GUI to make it more intuitive is is the go to way to test response times of websites through stress tests.
 
 **Features**
 
 - Load test any website URL
-- Follow local links for deeper testing
 - Control number of requests and concurrency
 - Dockerized for easy setup and portability
-- Simple command-line interface  
-- More features planned: detailed reporting, custom headers, scheduling, and more!
+- Simple command-line or GUI interface 
+- More features planned: detailed reporting, custom headers, scheduling, following links and more!
 
-**Dependencies**
-- [Docker](https://docs.docker.com/engine/install/)
-    OR
-- Python3  
-    - pip: httpx
+**CLI**
+Site-Tester has a CLI interface to allow for use on servers or automation. Follow the below steps to run
 
-**Docker**
-Site-Tester uses Docker to manage dependencies and make it easier to run. Follow the below steps to run
-- Build the docker image (only done once per version)
-    ```bash
-    docker build -t site-tester ./site-tester
-    ```
-- Run the container
-    ```
-    docker run {docker-args} site-tester {python-args}
-    ```
-**Docker Parameters**
-| Flag    | Description                        |
-|---------|----------------------------------|
-| `--rm` | Delete container after use         | 
-| `-it`    | Enable interactive mode    |
+To run use command 
+```bash
+./site_tester --cli <args>
+```
 
-**Running**
-- To run without docker use
-    ```bash
-    site-tester.py {python-args}
-    ```
-
-**Python Parameters**
+**Possible Arguments**
 | Flag    | Description                        | Default |
 |---------|----------------------------------|---|
 | `--url` | Target URL to test               | 
-| `-f`    | Follow local links on the site    | False |
 | `-n`    | Number of requests to perform     | 100 |
 | `-p`    | Number of concurrent workers      | 10 |
 | `--type`| Type of request ["get", "post"]   | get |
 | `--timeout` | Set timeout in seconds for requests | 10 |
 | `--ignore-ssl` | Ignore SSL errors | False |
+| `--skip-confirm` | Skips confirm message. Used for automation | False |
+| `--force-url` | Will not attempt to prepend *http(s)* to URL | False |
+| `-v` | Show verbose output | False |
 
 *Required field if default is empty*
+
+**GUI**
+Site-Tester also contains a GUI interface to use. It has all the same options as the CLI interface. To use open the application **without** the `--cli` argument.
 
 **⚠️ Important**
 **Only use Site Tester on websites you own or have explicit permission to test. Unauthorized load testing can cause serious issues and may be illegal.**
@@ -316,3 +300,62 @@ Custom configs for BASH and ZSH to display different terminal lines.
     - Will use this source automatically on a shell opening
 
 ---
+
+### Site-Tester-Python
+**Unsupported see [Site-Tester-Rust](#site-tester)
+[View Script](./site-tester/site-tester.py)
+
+Site Tester is a lightweight, no-nonsense tool designed to help you stress test your website quickly and easily. Spin it up with Docker, fire off multiple requests, and see how your site holds up under load — all without complicated setup.
+
+**Features**
+
+- Load test any website URL
+- Follow local links for deeper testing
+- Control number of requests and concurrency
+- Dockerized for easy setup and portability
+- Simple command-line interface  
+- More features planned: detailed reporting, custom headers, scheduling, and more!
+
+**Dependencies**
+- [Docker](https://docs.docker.com/engine/install/)
+    OR
+- Python3  
+    - pip: httpx
+
+**Docker**
+Site-Tester uses Docker to manage dependencies and make it easier to run. Follow the below steps to run
+- Build the docker image (only done once per version)
+    ```bash
+    docker build -t site-tester ./site-tester
+    ```
+- Run the container
+    ```
+    docker run {docker-args} site-tester {python-args}
+    ```
+**Docker Parameters**
+| Flag    | Description                        |
+|---------|----------------------------------|
+| `--rm` | Delete container after use         | 
+| `-it`    | Enable interactive mode    |
+
+**Running**
+- To run without docker use
+    ```bash
+    site-tester.py {python-args}
+    ```
+
+**Python Parameters**
+| Flag    | Description                        | Default |
+|---------|----------------------------------|---|
+| `--url` | Target URL to test               | 
+| `-f`    | Follow local links on the site    | False |
+| `-n`    | Number of requests to perform     | 100 |
+| `-p`    | Number of concurrent workers      | 10 |
+| `--type`| Type of request ["get", "post"]   | get |
+| `--timeout` | Set timeout in seconds for requests | 10 |
+| `--ignore-ssl` | Ignore SSL errors | False |
+
+*Required field if default is empty*
+
+**⚠️ Important**
+**Only use Site Tester on websites you own or have explicit permission to test. Unauthorized load testing can cause serious issues and may be illegal.**
