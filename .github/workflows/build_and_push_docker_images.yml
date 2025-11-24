@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-        DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
+      DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
 
     strategy:
       matrix:
@@ -29,7 +29,10 @@ jobs:
             docker_repo: tinystatus_vm
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Get latest SemVer patch tag
         id: get_tag
@@ -40,7 +43,6 @@ jobs:
           echo "Fetching tags from: $REPO_URL"
 
           RESPONSE=$(curl -s "$REPO_URL")
-
           TAGS=$(echo "$RESPONSE" | jq -r '.results[]?.name' 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true)
 
           if [ -z "$TAGS" ]; then
@@ -57,7 +59,6 @@ jobs:
           fi
 
           echo "NEXT_TAG=$NEXT_TAG" >> $GITHUB_OUTPUT
-
 
       - name: Docker login
         run: |
@@ -77,8 +78,14 @@ jobs:
         id: digest_check
         run: |
           IMAGE=${{ env.DOCKER_USERNAME }}/${{ matrix.docker_repo }}
-          NEW_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' $IMAGE:temp_build | cut -d@ -f2 || echo "none")
-          OLD_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' $IMAGE:latest | cut -d@ -f2 || echo "none")
+
+          NEW_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' $IMAGE:temp_build 2>/dev/null | cut -d@ -f2 || echo "none")
+
+          if docker inspect $IMAGE:latest >/dev/null 2>&1; then
+            OLD_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' $IMAGE:latest | cut -d@ -f2)
+          else
+            OLD_DIGEST="none"
+          fi
 
           echo "New image digest: $NEW_DIGEST"
           echo "Existing latest digest: $OLD_DIGEST"
