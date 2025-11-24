@@ -1,7 +1,10 @@
 name: Rust Build - site-tester
 
-on: [push]
-
+on:
+  push:
+    branches:
+      - main
+      - "*site*tester*"
 jobs:
   build:
     runs-on: ${{ matrix.runner }}
