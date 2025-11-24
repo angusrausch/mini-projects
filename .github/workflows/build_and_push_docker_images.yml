@@ -1,0 +1,102 @@
+name: Docker Build
+
+on:
+  push:
+    branches:
+      - main
+      - "*docker*"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+        DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
+
+    strategy:
+      matrix:
+        include:
+          - name: bastion
+            directory: docker_vms/bastion
+            docker_repo: bastion_vm
+          - name: microstatus
+            directory: docker_vms/microstatus
+            docker_repo: microstatus_vm
+          - name: pihole
+            directory: docker_vms/pihole
+            docker_repo: pihole_vm
+          - name: tinystatus
+            directory: docker_vms/tinystatus
+            docker_repo: tinystatus_vm
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: apk add --no-cache curl jq
+
+      - name: Get latest SemVer patch tag
+        id: get_tag
+        run: |
+          set -e
+          REPO_URL="https://hub.docker.com/v2/repositories/${DOCKER_USERNAME}/${DOCKER_REPO}/tags?page_size=100"
+          echo "Fetching tags from: $REPO_URL"
+
+          RESPONSE=$(curl -s "$REPO_URL")
+          TAGS=$(echo "$RESPONSE" | jq -r '.results[]?.name' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$')
+
+          if [ -z "$TAGS" ]; then
+            NEXT_TAG="0.0.1"
+          else
+            LATEST=$(echo "$TAGS" | sort -V | tail -n 1)
+            IFS='.'
+            set -- $LATEST
+            MAJOR=$1
+            MINOR=$2
+            PATCH=$3
+
+            PATCH=$((PATCH + 1))
+            NEXT_TAG="${MAJOR}.${MINOR}.${PATCH}"
+          fi
+
+          echo "NEXT_TAG=$NEXT_TAG" >> $GITHUB_OUTPUT
+
+      - name: Docker login
+        run: |
+          echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login -u ${{ env.DOCKER_USERNAME }} --password-stdin
+
+      - name: Try to pull latest image (optional)
+        continue-on-error: true
+        run: docker pull ${{ env.DOCKER_USERNAME }}/${{ matrix.docker_repo }}:latest
+
+      - name: Build new image
+        working-directory: ${{ matrix.directory }}
+        run: |
+          IMAGE=${{ env.DOCKER_USERNAME }}/${{ matrix.docker_repo }}
+          docker build -t $IMAGE:temp_build .
+
+      - name: Compare digests
+        id: digest_check
+        run: |
+          IMAGE=${{ env.DOCKER_USERNAME }}/${{ matrix.docker_repo }}
+          NEW_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' $IMAGE:temp_build | cut -d@ -f2 || echo "none")
+          OLD_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' $IMAGE:latest | cut -d@ -f2 || echo "none")
+
+          echo "New image digest: $NEW_DIGEST"
+          echo "Existing latest digest: $OLD_DIGEST"
+
+          if [ "$NEW_DIGEST" = "$OLD_DIGEST" ]; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Tag and push new version
+        if: steps.digest_check.outputs.changed == 'true'
+        run: |
+          IMAGE=${{ env.DOCKER_USERNAME }}/${{ matrix.docker_repo }}
+          TAG=${{ steps.get_tag.outputs.NEXT_TAG }}
+
+          docker tag $IMAGE:temp_build $IMAGE:$TAG
+          docker tag $IMAGE:temp_build $IMAGE:latest
+          docker push $IMAGE:$TAG
+          docker push $IMAGE:latest
