@@ -31,9 +31,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: apk add --no-cache curl jq
-
       - name: Get latest SemVer patch tag
         id: get_tag
         run: |
