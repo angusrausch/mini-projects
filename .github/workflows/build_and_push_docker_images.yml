@@ -35,11 +35,13 @@ jobs:
         id: get_tag
         run: |
           set -e
-          REPO_URL="https://hub.docker.com/v2/repositories/${DOCKER_USERNAME}/${{ matrix.docker_repo }}/tags?page_size=100"
+          IMAGE="${{ env.DOCKER_USERNAME }}/${{ matrix.docker_repo }}"
+          REPO_URL="https://hub.docker.com/v2/repositories/$IMAGE/tags?page_size=100"
           echo "Fetching tags from: $REPO_URL"
 
           RESPONSE=$(curl -s "$REPO_URL")
-          TAGS=$(echo "$RESPONSE" | jq -r '.results[]?.name' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$')
+
+          TAGS=$(echo "$RESPONSE" | jq -r '.results[]?.name' 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true)
 
           if [ -z "$TAGS" ]; then
             NEXT_TAG="0.0.1"
@@ -50,12 +52,12 @@ jobs:
             MAJOR=$1
             MINOR=$2
             PATCH=$3
-
             PATCH=$((PATCH + 1))
             NEXT_TAG="${MAJOR}.${MINOR}.${PATCH}"
           fi
 
           echo "NEXT_TAG=$NEXT_TAG" >> $GITHUB_OUTPUT
+
 
       - name: Docker login
         run: |
