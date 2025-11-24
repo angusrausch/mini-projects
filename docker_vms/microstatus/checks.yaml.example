@@ -1,0 +1,22 @@
+- title: "Internet"
+  services:
+    - name: "CloudFlare (IP)"
+      host: "1.1.1.1"
+      svc_type: "ping"
+
+    - name: "Google (IP)"
+      host: "8.8.8.8"
+      svc_type: "ping"
+
+- title: "Web"
+  services:
+    - name: "Google"
+      host: "google.com"
+      svc_type: "http"
+
+- title: "DNS"
+  services:
+    - name: "CloudFlare"
+      host: "1.1.1.1"
+      svc_type: "port"
+      port: 53
