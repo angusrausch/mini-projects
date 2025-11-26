@@ -1,24 +1,12 @@
+#include "request.h"
 #include <arpa/inet.h>
 #include <chrono>
 #include <cstring>
 #include <iostream>
-#include <string>
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include "lib.h"
-
-// Minimal DNS header for A record query
-struct DNSHeader {
-    uint16_t id;
-    uint16_t flags;
-    uint16_t qdcount;
-    uint16_t ancount;
-    uint16_t nscount;
-    uint16_t arcount;
-};
-
-void encode_domain(const std::string &domain, std::vector<uint8_t> &buffer) {
+void Request::encode_domain(const std::string &domain, std::vector<uint8_t> &buffer) {
     size_t start = 0, end;
     while ((end = domain.find('.', start)) != std::string::npos) {
         buffer.push_back(end - start);
@@ -27,14 +15,14 @@ void encode_domain(const std::string &domain, std::vector<uint8_t> &buffer) {
     }
     buffer.push_back(domain.size() - start);
     for (size_t i = start; i < domain.size(); ++i) buffer.push_back(domain[i]);
-    buffer.push_back(0); // null terminator
+    buffer.push_back(0);
 }
 
-int make_request(const std::string &nameserver, const std::string &domain, const int timeout, const bool verbose, const bool valid_site) {
-    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+int Request::make_request(const std::string &domain, const bool valid_site) {
+        int sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
         if (verbose) {
-            std::cerr << "Failed to create socket\n";
+            output("Failed to create socket\n");
         }
         return -1;
     }
@@ -44,7 +32,7 @@ int make_request(const std::string &nameserver, const std::string &domain, const
     addr.sin_port = htons(53);
     if (inet_pton(AF_INET, nameserver.c_str(), &addr.sin_addr) <= 0) {
         if (verbose) {
-            std::cerr << "Invalid nameserver IP\n";
+            output("Invalid nameserver IP\n");
         }
         close(sock);
         return -1;
@@ -68,7 +56,7 @@ int make_request(const std::string &nameserver, const std::string &domain, const
     if (sendto(sock, packet.data(), packet.size(), 0,
                reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
         if (verbose) {
-            std::cerr << "Failed to send DNS query\n";
+            output("Failed to send DNS query\n");
         }
         close(sock);
         return -1;
@@ -85,7 +73,7 @@ int make_request(const std::string &nameserver, const std::string &domain, const
     int ready = select(sock + 1, &read_fds, nullptr, nullptr, &tv);
     if (ready <= 0) {
         if (verbose) {
-            std::cerr << "DNS query timed out\n";
+            output("DNS query timed out\n");
         }
         close(sock);
         return -1;
@@ -95,27 +83,38 @@ int make_request(const std::string &nameserver, const std::string &domain, const
     ssize_t n = recvfrom(sock, buffer, sizeof(buffer), 0, nullptr, nullptr);
     if (n <= 0) {
         if (verbose) {
-            std::cerr << "Failed to receive DNS response\n";
+            output("Failed to receive DNS response\n");
         }
         close(sock);
         return -1;
+    }
+
+    if (n >= sizeof(DNSHeader)) {
+        DNSHeader* resp_header = reinterpret_cast<DNSHeader*>(buffer);
+        uint16_t ancount = ntohs(resp_header->ancount);
+        if (ancount <= 0 && valid_site) {
+            if (verbose) {
+                output("Site NOT found in DNS response\n");
+            }
+            return -1;
+        }
     }
 
     auto end = std::chrono::high_resolution_clock::now();
     close(sock);
 
     return std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+
 }
 
-bool test_valid(Config config) {
-    int time_taken = make_request(config.nameserver, config.domain, 5, true, true);
-
-    return time_taken != -1;
+bool Request::test_valid() {
+    return make_request(domain, true) != -1;
 }
 
-int run(Config config) {
-    int time_ms = make_request(config.nameserver, config.domain, 5, config.verbose);
+int Request::start_requests() {
+    int time_ms = make_request(domain, false);
     std::cout << "DNS query took " << time_ms << " ms\n";
     return 0;
 }
- 
+
+void Request::output(std::string str) {}
