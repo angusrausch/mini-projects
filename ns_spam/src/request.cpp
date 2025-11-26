@@ -5,6 +5,7 @@
 #include <iostream>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <thread>
 
 void Request::encode_domain(const std::string &domain, std::vector<uint8_t> &buffer) {
     size_t start = 0, end;
@@ -111,9 +112,33 @@ bool Request::test_valid() {
     return make_request(domain, true) != -1;
 }
 
+void Request::worker(int requests) {
+    for (int i = 0; i < requests; i++){
+        make_request(domain, false);
+    }
+}
+
 int Request::start_requests() {
-    int time_ms = make_request(domain, false);
-    std::cout << "DNS query took " << time_ms << " ms\n";
+    int requests_per_thread = requests / threads;
+    int requests_remainder = requests % threads;
+
+    std::vector<std::thread> thread_pool;
+
+    for (int i = 0; i < threads; i++) {
+        int worker_threads = requests_per_thread;
+        if (i < requests_remainder) {
+            worker_threads++;
+        }
+
+        thread_pool.emplace_back([this, worker_threads]() {
+            worker(worker_threads);
+        });
+    }
+
+    for (auto &t : thread_pool) {
+        t.join();
+    }
+
     return 0;
 }
 

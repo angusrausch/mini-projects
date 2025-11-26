@@ -21,16 +21,19 @@ CliRequest::CliRequest(int argc, char *argv[]) {
             nameserver = argv[++i];
         } else if (arg == "--domain" && i + 1 < argc) {
             domain = argv[++i];
-        } else if (arg == "--requests" && i + 1 < argc) {
+        } else if ((arg == "--requests" || arg == "-n") && i + 1 < argc) {
             requests = std::stoi(argv[++i]);
-        } else if (arg == "--threads" && i + 1 < argc) {
+        } else if ((arg == "--threads" || arg == "-t") && i + 1 < argc) {
             threads = std::stoi(argv[++i]);
         } else if (arg == "--verbose" || arg == "-v") {
             verbose = true;
         } else if (arg == "--random" || arg == "-r") {
             random = true;
+        } else if (arg == "--timeout" && i + 1 < argc) {
+            timeout = std::stoi(argv[++i]);
         } else if (arg != "--cli") {
-            std::cerr << "Unknown argument: " << arg << "\n";
+            std::cerr << std::format("{}Unknown argument: {}{}\n", RED, arg, RESET);
+            exit(1);
         }
     }
 
@@ -51,8 +54,8 @@ void CliRequest::print_welcome() {
         "|  \\| | (___ _____| (___ | |__) /  \\  | \\  / |\n"
         "| . ` |\\___ \\______\\___ \\|  ___/ /\\ \\ | |\\/| |\n"
         "| |\\  |____) |     ____) | |  / ____ \\| |  | |\n"
-        "|_| \\_|_____/     |_____/|_| /_/    \\_\\_|  |_|\n\n\n",
-        BOLD, CYAN
+        "|_| \\_|_____/     |_____/|_| /_/    \\_\\_|  |_|\n\n\n{}",
+        BOLD, CYAN, RESET
     );
     std::cout << ascii_banner;
 
@@ -85,8 +88,8 @@ void CliRequest::print_welcome() {
     }
 
     std::cout << std::format(
-        "{}Requests: {}{}{} | Threads: {}{}{}{}\n\n",
-        YELLOW, BLUE, requests, RESET, BLUE, threads, RESET, YELLOW
+        "{}Requests: {}{}{} | Threads: {}{}{}\n\n",
+        YELLOW, BLUE, requests, YELLOW, BLUE, threads, RESET
     );
 }
 
@@ -105,13 +108,19 @@ int CliRequest::run() {
         return 1;
     }
 
-    return 1;
     std::cout << std::format(
-        "\n{}Request successful. Starting workload...{}\n",
+        "\n\n{}Starting workload...{}\n",
+        YELLOW, RESET
+    );
+
+    start_requests();
+
+    std::cout << std::format(
+        "{}Requests completed\n{}",
         GREEN, RESET
     );
 
-    return start_requests();
+    return 0;
 }
 
 void CliRequest::output(std::string str) {
