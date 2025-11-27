@@ -9,6 +9,9 @@
 #include <algorithm>
 #include <tuple>
 #include <cmath>
+#include <atomic>
+
+extern std::atomic<bool> stop_flag;
 
 void Request::encode_domain(const std::string &domain, std::vector<uint8_t> &buffer) {
     size_t start = 0, end;
@@ -115,28 +118,31 @@ bool Request::test_valid() {
     return make_request(domain, true) != -1;
 }
 
-std::tuple<int, int, int> Request::worker(int requests) {
+std::tuple<int, int, int, int> Request::worker(int requests) {
     int failed = 0;
     int total_time = 0;
     int max_time = 0;
-    for (int i = 0; i < requests || endless; i++){
+    int successful_requests = 0;
+    for (int i = 0; (i < requests || endless) && !stop_flag; i++){
         int time_taken = make_request(domain, false);
         if (time_taken == -1) {
             failed++;
         } else {
+            successful_requests ++;
             total_time += time_taken;
             max_time = std::max(max_time, time_taken);
         }
     }
-    return std::tuple(total_time, failed, max_time);
+    return std::tuple(total_time, failed, max_time, successful_requests);
 }
+
 
 int Request::start_requests() {
     int requests_per_thread = requests / threads;
     int requests_remainder = requests % threads;
 
     std::vector<std::thread> thread_pool;
-    std::vector<std::tuple<int, int, int>> results(threads);
+    std::vector<std::tuple<int, int, int, int>> results(threads);
 
     for (int i = 0; i < threads; i++) {
         int worker_threads = requests_per_thread;
@@ -150,25 +156,25 @@ int Request::start_requests() {
     }
 
     long long total_time = 0;
-    int failed = 0, max_time = 0;
+    int failed = 0, max_time = 0, successful_requests = 0;
 
     for (int i = 0; i < threads; i++) {
         thread_pool[i].join();
-        auto [total_time_thread, failed_thread, max_time_thread] = results[i];
+        auto [total_time_thread, failed_thread, max_time_thread, successful_requests_thread] = results[i];
         total_time += total_time_thread;
         failed += failed_thread;
         max_time = std::max(max_time, max_time_thread);
+        successful_requests += successful_requests_thread;
     }
 
     // Create summary
-    int successful_requests = requests - failed;
     double average = std::round(
         ((double)total_time / successful_requests) / 1000.0 * 100.0
     ) / 100.0;
     double max_time_seconds = std::round(
         (double) max_time / 1000.0 * 100.0
     ) / 100.0;
-    output(std::format("\nTotal of {} requests made.\n"
+    output(std::format("\nTotal of {} requests returned.\n"
         "{} requests failed\n"
         "An average time per successful request of {} seconds\n"
         "Longest successful request took {} seconds\n", 

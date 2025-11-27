@@ -44,5 +44,5 @@ private:
 
     void encode_domain(const std::string &domain, std::vector<uint8_t> &buffer);
     int make_request(const std::string &domain, const bool valid_site);
-    std::tuple<int, int, int> worker(int requests);
+    std::tuple<int, int, int, int> worker(int requests);
 };
