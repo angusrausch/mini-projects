@@ -14,8 +14,10 @@ static const std::string BOLD    = "\033[1m";
 static const std::string ORANGE  = "\033[38;5;208m";
 
 CliRequest::CliRequest(int argc, char *argv[]) {
+    bool requests_set = false;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
+
 
         if (arg == "--nameserver" && i + 1 < argc) {
             nameserver = argv[++i];
@@ -23,6 +25,9 @@ CliRequest::CliRequest(int argc, char *argv[]) {
             domain = argv[++i];
         } else if ((arg == "--requests" || arg == "-n") && i + 1 < argc) {
             requests = std::stoi(argv[++i]);
+            requests_set = true;
+        } else if ((arg == "--endless")) {
+            endless = true;
         } else if ((arg == "--threads" || arg == "-t") && i + 1 < argc) {
             threads = std::stoi(argv[++i]);
         } else if (arg == "--verbose" || arg == "-v") {
@@ -40,6 +45,14 @@ CliRequest::CliRequest(int argc, char *argv[]) {
     if (nameserver.empty()) {
         std::cerr << std::format(
             "{}ERROR: --nameserver is required{}\n",
+            RED, RESET
+        );
+        exit(1);
+    }
+    
+    if (endless && requests_set) {
+        std::cerr << std::format(
+            "{}ERROR: Cannot set -n/--requests and --endless{}\n",
             RED, RESET
         );
         exit(1);

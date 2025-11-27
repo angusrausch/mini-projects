@@ -13,6 +13,7 @@ public:
     int timeout = 5;
     bool verbose = false;
     bool random = false;
+    bool endless = false;
 
     // Default constructor needed for CliRequest
     Request() = default;

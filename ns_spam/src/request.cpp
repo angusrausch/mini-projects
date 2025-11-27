@@ -119,7 +119,7 @@ std::tuple<int, int, int> Request::worker(int requests) {
     int failed = 0;
     int total_time = 0;
     int max_time = 0;
-    for (int i = 0; i < requests; i++){
+    for (int i = 0; i < requests || endless; i++){
         int time_taken = make_request(domain, false);
         if (time_taken == -1) {
             failed++;
