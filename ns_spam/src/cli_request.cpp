@@ -18,8 +18,41 @@ CliRequest::CliRequest(int argc, char *argv[]) {
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
 
+        if (arg == "--help" || arg == "-h") {
+           std::cout << R"(Usage: ns-spam [options]
 
-        if (arg == "--nameserver" && i + 1 < argc) {
+Options:
+  -h, --help
+        Show this help message and exit.
+
+  --nameserver <ip>
+        Specify the DNS nameserver to query.
+
+  --domain <domain> (default: google.com)
+        Domain name to resolve.
+
+  -n, --requests <number> (default: 100)
+        Number of DNS requests to send.
+
+  --endless (default: false)
+        Run requests endlessly until interrupted.
+
+  -t, --threads <number> (default: 10)
+        Number of worker threads to use.
+
+  -v, --verbose (default: false)
+        Enable verbose output.
+
+  -r, --random (default: false)
+        Randomize query subdomains (e.g., <random>.<domain>).
+
+  --timeout <ms> (defualt: 5)
+        Timeout per request in seconds.
+
+  --cli
+        Required for CLI functionality)";
+        exit(0);
+        } else if (arg == "--nameserver" && i + 1 < argc) {
             nameserver = argv[++i];
         } else if (arg == "--domain" && i + 1 < argc) {
             domain = argv[++i];
