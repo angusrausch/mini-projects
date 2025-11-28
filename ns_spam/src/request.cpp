@@ -10,6 +10,8 @@
 #include <tuple>
 #include <cmath>
 #include <atomic>
+#include <random>
+#include <functional>
 
 extern std::atomic<bool> stop_flag;
 
@@ -123,18 +125,48 @@ std::tuple<int, int, int, int> Request::worker(int requests) {
     int total_time = 0;
     int max_time = 0;
     int successful_requests = 0;
-    for (int i = 0; (i < requests || endless) && !stop_flag; i++){
-        int time_taken = make_request(domain, false);
+
+    thread_local std::mt19937 rng(std::random_device{}());
+
+    std::uniform_int_distribution<> char_dist(0, 25);
+    std::uniform_int_distribution<> len_dist(3, 8);
+
+    const std::string chars = "abcdefghijklmnopqrstuvwxyz";
+
+    std::function<std::string()> get_domain;
+
+    if (random) {
+        get_domain = [&]() {
+            size_t len = len_dist(rng);
+            std::string r;
+            r.reserve(len);
+
+            for (size_t i = 0; i < len; i++)
+                r.push_back(chars[char_dist(rng)]);
+
+            return r + '.' + domain;
+        };
+    } else {
+        get_domain = [&]() {
+            return domain;
+        };
+    }
+
+    for (int i = 0; (i < requests || endless) && !stop_flag; i++) {
+        auto in_use_domain = get_domain();
+        int time_taken = make_request(in_use_domain, false);
         if (time_taken == -1) {
             failed++;
         } else {
-            successful_requests ++;
+            successful_requests++;
             total_time += time_taken;
             max_time = std::max(max_time, time_taken);
         }
     }
-    return std::tuple(total_time, failed, max_time, successful_requests);
+
+    return { total_time, failed, max_time, successful_requests };
 }
+
 
 
 int Request::start_requests() {
