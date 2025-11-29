@@ -3,5 +3,7 @@
 DIR="$(dirname "$(realpath "$0")")"
 
 mkdir -p "$DIR/target"
+cd "$DIR"
 
-clang++ -std=c++23 "$DIR/src/"*.cpp -o "$DIR/target/ns-spam" 
+cmake -S . -B target
+cmake --build target
