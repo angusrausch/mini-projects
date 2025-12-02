@@ -14,6 +14,8 @@ Some may be specific to my setup only but they can be interesting or maybe one c
 5. [Backerupperer](#backerupperer)
 6. [Shell-Config](#shell-config)
 7. [Docker-VMs](#docker-vms)
+8. [Site-Tester-Python](#site-tester-python)
+9. [NS-Spam-Python](#ns-spam-python)
 
 ---
 
@@ -21,26 +23,37 @@ Some may be specific to my setup only but they can be interesting or maybe one c
 [View Script](./ns-spam.py)
 
 Test performance of low power DNS Nameservers using this tool.
-Stresses the heck out of the system you run it on too
+New C++ version has low power usage on client device.
 
 **Dependencies**:
-- Python3
-- nslookup (dnsutils)
+- Clang++/cmake
+
+**Build**
+This project requires a build before use.
+Use cmake wrapper to build script
+```bash
+./build.sh
+```
+This will build the application and output it to `./target/ns-spam` 
 
 **Usage**:
 ```bash
-python3 ns-spam.py {args}
+./ns-spam --cli {args}
 ```
+
 Options:
 | Key | Description | Default |
 |---|-------------|----------|
 | `--nameserver` | IP address of nameserver to test | 
 | `-d` `--domain` | Domain to lookup | google.com |
-| `-i` `--number` | Number of lookup requests to make | 100 |
+| `-n` `--number` | Number of lookup requests to make | 100 |
 | `-r` `--random` | Randomise domain (Adds a subdomain of random characters of a length between 3-7) | False |
-| `-v` `--verbos` | Adds verbose output, includes IP found and time taken per request | False |
+| `-v` `--verbose` | Adds verbose output, includes IP found and time taken per request | False |
 | `-t` `--threads` | Max number of synchronous requests (+-1) | ∞ |
+| `--timeout` | Timeout for each individual request | 5 |
+| `--endless` | Runs until terminated |
 
+*`--cli` required until a gui is added*
 *Required field if default is empty*
 
 **⚠️ Important**
@@ -303,7 +316,7 @@ Custom configs for BASH and ZSH to display different terminal lines.
 ---
 
 ### Site-Tester-Python
-**Unsupported see [Site-Tester-Rust](#site-tester)
+**Unsupported see [Site-Tester-Rust](#site-tester)**
 [View Script](./site-tester/site-tester.py)
 
 Site Tester is a lightweight, no-nonsense tool designed to help you stress test your website quickly and easily. Spin it up with Docker, fire off multiple requests, and see how your site holds up under load — all without complicated setup.
@@ -360,6 +373,40 @@ Site-Tester uses Docker to manage dependencies and make it easier to run. Follow
 
 **⚠️ Important**
 **Only use Site Tester on websites you own or have explicit permission to test. Unauthorized load testing can cause serious issues and may be illegal.**
+
+---
+
+### NS-SPAM-Python
+**Unsupported see [NS-Spam-CPP](#ns-spam)**
+
+[View Script](./ns-spam.py)
+
+Test performance of low power DNS Nameservers using this tool.
+Stresses the heck out of the system you run it on too
+
+**Dependencies**:
+- Python3
+- nslookup (dnsutils)
+
+**Usage**:
+```bash
+python3 ns-spam.py {args}
+```
+Options:
+| Key | Description | Default |
+|---|-------------|----------|
+| `--nameserver` | IP address of nameserver to test | 
+| `-d` `--domain` | Domain to lookup | google.com |
+| `-i` `--number` | Number of lookup requests to make | 100 |
+| `-r` `--random` | Randomise domain (Adds a subdomain of random characters of a length between 3-7) | False |
+| `-v` `--verbos` | Adds verbose output, includes IP found and time taken per request | False |
+| `-t` `--threads` | Max number of synchronous requests (+-1) | ∞ |
+
+*Required field if default is empty*
+
+**⚠️ Important**
+**Only use NS-SPAM on websites you own or have explicit permission to test. Unauthorized load testing can cause serious issues and may be illegal.**
+
 
 ### Docker VMs
 
