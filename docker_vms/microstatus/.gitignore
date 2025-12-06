@@ -3,3 +3,6 @@ checks.yaml
 *.html
 keepalived.conf
 nginx.conf
+history.json
+.env_internal
+ssl/

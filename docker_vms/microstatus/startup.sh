@@ -100,6 +100,8 @@ if $START; then
     fi
     echo -e "\n${YELLOW}Starting container...${CYAN}"
 
+	touch $DIR/history.json #Ensure this is a file 
+
 	docker run \
 		--name=microstatus \
 		--network $VLAN_NAME \
@@ -112,6 +114,7 @@ if $START; then
 		-v ${DIR}/.env_internal:/microstatus/.env_internal \
 		-v ${DIR}/keepalived.conf:/etc/keepalived/keepalived.conf \
 		-v ${DIR}/ssl/:/etc/nginx/ssl/ \
+		-v ${DIR}/history.json:/microstatus/history.json \
 		-v ${DIR}/nginx.conf:/etc/nginx/http.d/microstatus.conf \
 		-v ${DIR}/checks.yaml:/microstatus/checks.yaml \
 		--restart unless-stopped \
