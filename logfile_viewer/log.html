@@ -3,11 +3,17 @@
         <h1>
             {{log.name}}
         </h1>
-        <a href="{{back_path}}">
-            Back
-        </a>
+        <div style="display: flex; align-items: center;">
+            <span style="flex: 1; text-align: left;">
+                <a href="{{back_path}}">Back</a>
+            </span>
+        </div>
+        <div style="width: 100%; text-align: center;">
+            <span id="error" style="color: red; font-size: 1.5em; font-weight: bold;">
+            </span>
+        </div>
         <br><br>
-        <div>
+        <div id="logs">
             {% for log_line in log_contents %}
                 <span style="padding: 5px;">
                     {{log_line}}
@@ -16,3 +22,52 @@
         </div>
     </body>
 </html>
+
+<script>
+    remoteHost = window.location.host;
+    remotePath = window.location.pathname;
+    remoteProtocol = window.location.protocol;
+    remoteLocation = remoteProtocol + "//" + remoteHost + "/api" + remotePath;
+
+    async function loadUpdates() {
+        try {
+            const response = await fetch(remoteLocation, {
+                method: "GET",
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            if (await response.ok) {
+                return await response.json();
+            }
+        } catch (error) {
+            console.error("Error loading values:", error);
+            document.getElementById("error").innerHTML = "Error fetching updated data"
+        }
+    }
+
+    async function updatePage() {
+        let updatedLogs = await loadUpdates();
+
+        let updatedHtml = String();
+
+        updatedLogs.contents.forEach(function (logLine) {
+            updatedHtml += `
+<span style="padding: 5px;">
+    ${logLine}
+</span><br>`;
+        });
+
+        document.getElementById("logs").innerHTML = updatedHtml;
+    }
+
+
+
+
+    window.addEventListener('load', function () {
+        updatePage();
+        setInterval(updatePage, 10000);
+    });
+
+
+</script>
