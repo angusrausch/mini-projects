@@ -1,0 +1,15 @@
+hostaddress: localhost
+hostport: 8888
+logs:
+  - name: basic
+    logfile: ./test/basic.txt
+  - name: break_char
+    logfile: ./test/break_char.txt
+    breaksymbol: ---
+  - name: compressed
+    logfile: ./test/compressed.txt.gz
+  - name: directory
+    logfile: ./test/
+  - name: remote
+    logfile: 'webserver:/var/log/nginx/b-access.log'
+    remote: true
