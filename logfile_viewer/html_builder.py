@@ -14,14 +14,11 @@ def build_index(logs):
         template = Template(file.read())
     return OK_HEADER + template.render(logs=logs)
 
-def build_log_page(log, log_file="", back_path="/"):
-    log_file = log.log_file if not log_file else log_file
-    
-    log_contents = log.format_file_contents(log_file)
+def build_log_page(log, back_path="/"):
     
     with open("log.html") as file:
         template = Template(file.read())
-    return OK_HEADER + template.render(log=log, log_contents=log_contents, back_path=back_path)
+    return OK_HEADER + template.render(log=log, back_path=back_path)
 
 def build_dir_page(log, file_path, path, back_path = "/"):
     contents = log.format_dir_contents(file_path, path)

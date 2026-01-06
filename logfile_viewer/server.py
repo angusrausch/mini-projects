@@ -37,11 +37,15 @@ class Server:
 
     def create_json(self, path):
         log_index = path[2]
-        new_path = "/".join(path[2:])
         log = self.logs[log_index]
 
+        if os.path.isdir(log.log_file):
+            file_path = os.path.join(log.log_file, *path[3:])
+        else:
+            file_path = log.log_file
+
         log_contents = {
-            "contents": log.format_file_contents(log.log_file)
+            "contents": log.format_file_contents(file_path)
         }
         
         header = ("HTTP/1.1 200 OK\r\n"
@@ -52,25 +56,23 @@ class Server:
         return header + json.dumps(log_contents)
 
 
-
     def create_html(self, path):
         log_index = path[1]
-        new_path = "/".join(path[1:])
-        back_path = "/".join(path[:-1]) if len(path) > 2 else "/"
+        new_path = os.path.join(*path[1:])
+        back_path = "/" + os.path.join(*path[:-1]) if len(path) > 2 else "/"
         log = self.logs[log_index]
         log_dir = os.path.isdir(log.log_file)
         if log_dir:
-            real_path = "/".join(path[3:])
-            file_path = "/".join((log.log_file, real_path))
-
+            real_path = os.path.join(*path[2:]) if len(path) > 2 else ""
+            file_path = os.path.join(log.log_file, real_path)
             if os.path.isfile(file_path):
-                http_response = build_log_page(log, log_file=file_path, back_path=back_path)
+                http_response = build_log_page(log, back_path=back_path)
             elif os.path.isdir(file_path):
                 http_response = build_dir_page(log, file_path, new_path, back_path = back_path)
             else:
                 print("-" * 50)
                 print("ERROR")
-                print(f"File Path: {file_path}\nReal Path: {real_path}")
+                print(f"URL Path: {path}\nFile Path: {file_path}\nReal Path: {real_path}")
                 print("-" * 50)
         else:
             return build_log_page(log, back_path=back_path)
@@ -106,7 +108,7 @@ class Server:
                         print(f"INDEX ERROR:\n{e}")
                     if path == "" or path == "/":
                         http_response = index_html
-                        print("INDEX")
+                        print("/")
                     elif "/log/" in path:
                         try:
                             path_sections = path.split("/")[1:]

@@ -33,10 +33,6 @@ class Log:
         # shortened_log_list = log_list[:50]
         return log_list
     
-    def file_path(self, path):
-        real_path = "/".join(path.split("/")[1:])
-        return "/".join((self.log_file, real_path))
-    
     def format_dir_contents(self, file_path, path):
         raw_contents = os.listdir(file_path)
         contents = []
