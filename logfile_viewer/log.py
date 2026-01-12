@@ -17,11 +17,12 @@ class Log:
             else:
                 with open(log_file, "r") as file:
                     content = file.read()
-        except FileNotFoundError:
+        except FileNotFoundError as e:
             print(f"File does not exist {log_file}")
-            return
-        except gzip.BadGzipFile:
+            raise FileNotFoundError(e)
+        except gzip.BadGzipFile as e:
             print(f"Error in unzipping {log_file}")
+            raise gzip.BadGzipFile(e)
         if self.break_symbol == r"\n":
             raw_log_list = content.splitlines()
         else:

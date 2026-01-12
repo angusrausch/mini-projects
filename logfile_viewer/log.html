@@ -32,17 +32,27 @@
                     'Content-Type': 'application/json',
                 }
             });
-            if (await response.ok) {
-                return await response.json();
+            if (response.ok) {
+                return response.json();
+            } else if (response.status === 404) {
+                document.getElementById("error").innerHTML = "File not found";
+                return -1;
+            } else if (response.status === 500) {
+                document.getElementById("error").innerHTML = "Malformed GZIP file detected";
+                return -1;
             }
         } catch (error) {
             console.error("Error loading values:", error);
-            document.getElementById("error").innerHTML = "Error fetching updated data"
+            document.getElementById("error").innerHTML = "Error fetching updated data";
         }
     }
 
     async function updatePage() {
         let updatedLogs = await loadUpdates();
+
+        if (updatedLogs === -1) {
+            return;
+        }
 
         let updatedHtml = String();
 

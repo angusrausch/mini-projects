@@ -24,7 +24,7 @@ class Server:
                     hostport = int(rawhostport)
                 except ValueError:
                     print(f"String \"{rawhostport}\" cannot be converted to INT")
-                    exit()
+                    exit(1)
                 self.hostaddress = (rawhostaddress, hostport)
                 raw_logs = data["logs"]
                 self.logs = {}
@@ -44,17 +44,28 @@ class Server:
         else:
             file_path = log.log_file
 
-        log_contents = {
-            "contents": log.format_file_contents(file_path)
-        }
-        
-        header = ("HTTP/1.1 200 OK\r\n"
-            "Content-Type: text/html\r\n"
-            "Set-Cookie: ServerName=logviewer\r\n"
-            "\r\n")
+        try:
+            log_contents = {
+                "contents": log.format_file_contents(file_path)
+            }
+            
+            header = ("HTTP/1.1 200 OK\r\n"
+                "Content-Type: text/html\r\n"
+                "Set-Cookie: ServerName=logviewer\r\n"
+                "\r\n")
 
-        return header + json.dumps(log_contents)
-
+            return header + json.dumps(log_contents)
+        except FileNotFoundError:
+            return ("HTTP/1.1 404 OK\r\n"
+                "Content-Type: text/html\r\n"
+                "Set-Cookie: ServerName=logviewer\r\n"
+                "\r\n")
+        except gzip.BadGzipFile:
+            return ("HTTP/1.1 500 OK\r\n"
+                "Content-Type: text/html\r\n"
+                "Set-Cookie: ServerName=logviewer\r\n"
+                "\r\n"
+                '{"error": "Bad Gzip File"}')
 
     def create_html(self, path):
         log_index = path[1]
