@@ -3,6 +3,7 @@ charset-normalizer==3.4.3
 idna==3.10
 iniconfig==2.1.0
 Jinja2==3.1.6
+lorem-text==3.0
 MarkupSafe==3.0.2
 packaging==25.0
 pluggy==1.6.0

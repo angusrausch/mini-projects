@@ -1,47 +1,113 @@
-from server import run, load_yaml
+from server import Server
+from log import Log
 
 import pytest
 import threading
 import time
 import requests
+from lorem_text import lorem
+from pathlib import Path
+import shutil
+import gzip
 import os
+import json
 
 @pytest.fixture(scope="session")
-def yaml():
-    yaml_output = load_yaml()
-    host_address = f"{yaml_output[0][0]}:{yaml_output[0][1]}"
-    logs = yaml_output[1]
-    return host_address, logs
+def make_logs():
+    """
+    Creates basic log files for testing
+    """
+
+    test_file_dir = Path("./pytest_test_files")
+    if test_file_dir.exists():
+        shutil.rmtree(test_file_dir)
+    test_file_dir.mkdir()
+    test_file_subdir = test_file_dir / "inside"
+    test_file_subdir.mkdir()
+    for i in range(1, 5):
+        with open((test_file_subdir / str(i)), 'w') as file:
+            file.write("")
+
+
+    logs = {
+        "basic": {"logfile": f"{test_file_dir}/basic.txt"},
+        "compressed": {"logfile": f"{test_file_dir}/compressed.gz"},
+        "break_char": {"logfile": f"{test_file_dir}/break_char.txt", "breaksymbol": "---"},
+        "directory": {"logfile": f"{test_file_dir}"}
+    }
+
+    formatted_logs = {}
+    for key, value in logs.items():
+        log = Log(value)
+        formatted_logs[key] = log
+
+    for key, value in logs.items():
+        if key == "directory":
+            continue
+        text = "STARTFILE\n"
+        for i in range(10):
+            text += lorem.words(6) + "\n"
+            if "breaksymbol" in value:
+                text += lorem.words(4) + "\n"
+                text += value["breaksymbol"] + "\n"
+        text += "ENDFILE"
+
+        if ".gz" in value["logfile"]:
+            with gzip.open(value["logfile"], 'w') as file:
+                content = file.write(text.encode('utf-8'))
+        else:
+            with open(value["logfile"], 'w') as file:
+                file.write(text)
+        
+    yield formatted_logs
+
+    try:
+        shutil.rmtree(test_file_dir)
+    except Exception:
+        pass
 
 def make_request(address):
     try:
-        return requests.get(f"http://{address}", timeout=3)        
-
+        response = requests.get(f"http://{address}", timeout=3)        
+        assert response.ok
+        return response
     except requests.exceptions.ConnectionError:
-        pytest.fail("Failed to connect to the server. Is it running?")
+        print(f"Request made to \'http://{address}\' and failed")
+        pytest.fail(f"Failed to connect to the server. Is it running?")
 
-def check_string_order(string, substrings):
-    substring_index = 0
+def make_api_request(address):
+    try:
+        response_string = make_request(address).text
+        return json.loads(response_string)
+    except json.JSONDecodeError:
+        pytest.fail("Failed to decode returned json")
+
+def check_list_order(list, substrings):
+    previous_index = -1
     for substring in substrings:
-        index = string.find(substring)
-        # Asserts that string is in order 
-        assert index >= substring_index
-        substring_index = index
+        index = next(i for i, item in enumerate(list) if substring in item)
+        assert index > previous_index
+        previous_index = index
 
 @pytest.fixture(scope="session")
-def server():
+def server(make_logs):
     stop_server_flag = threading.Event()
-    thread = threading.Thread(target=run, args=(stop_server_flag,), daemon=True)
+    port = 8900#random.randint(10000, 60000)
+    logs = make_logs
+    host_address = ("127.0.0.1", port)
+    host_address_string = f"{host_address[0]}:{host_address[1]}"
+    server = Server(host_address=host_address, logs=logs)
+    thread = threading.Thread(target=server.run, args=(stop_server_flag,), daemon=True)
     thread.start()
     time.sleep(1)
-    yield
+    yield host_address_string, logs
     stop_server_flag.set()
     thread.join(timeout=5)
 
-def test_index_page(server, yaml):
+def test_index_page(server):
     """Tests that the server's home page returns a 200 OK status."""
-    host_address = yaml[0]
-    logs = yaml[1]
+    host_address = server[0]
+    logs = server[1]
 
     response = make_request(host_address)
 
@@ -52,48 +118,53 @@ def test_index_page(server, yaml):
     for keyword in logs:
         assert keyword in response.text
 
-def test_basic_log(server, yaml):
-    host_address = yaml[0]
-    request_address = f"{host_address}/log/basic"
-
-    response = make_request(request_address)
-
-    sub_strings_in_order = [
-        "ENDFILE",
-        "STARTFILE"
-    ]
-    check_string_order(response.text, sub_strings_in_order)
-
-def test_compressed_log(server, yaml):
-    host_address = yaml[0]
-    request_address = f"{host_address}/log/compressed"
-
-    response = make_request(request_address)
+def test_basic_log(server):
+    host_address = server[0]
+    request_address = f"{host_address}/api/log/basic"
+    
+    response = make_api_request(request_address)
 
     sub_strings_in_order = [
         "ENDFILE",
         "STARTFILE",
     ]
-    check_string_order(response.text, sub_strings_in_order)
+    check_list_order(response["contents"], sub_strings_in_order)
 
-def test_break_char(server, yaml):
-    host_address = yaml[0]
-    request_address = f"{host_address}/log/break_char"
 
-    response = make_request(request_address)
+def test_compressed_log(server):
+    host_address = server[0]
+    request_address = f"{host_address}/api/log/compressed"
+
+    response = make_api_request(request_address)
 
     sub_strings_in_order = [
-        "THIS SHOULD BE THE FIRST LINE",
-        "THIS IS THE END NOW :)",
-        "TEST THE BREAK CHAR",
-        "ANOTHER LINE",
-        "THIS SHOULD BE THE LAST LINE"
+        "ENDFILE",
+        "STARTFILE",
     ]
-    check_string_order(response.text, sub_strings_in_order)
+    check_list_order(response["contents"], sub_strings_in_order)
 
-def test_directory(server, yaml):
-    host_address = yaml[0]
-    log = yaml[1]["directory"]
+def test_break_char(server):
+    host_address = server[0]
+    request_address = f"{host_address}/api/log/break_char"
+
+    response = make_api_request(request_address)
+
+    sub_strings_in_order = [
+        "ENDFILE",
+        "STARTFILE",
+    ]
+    check_list_order(response["contents"], sub_strings_in_order)
+
+    for line in response["contents"]:
+        if "STARTFILE" in line or "ENDFILE" in line:
+            continue
+        if r"\n" not in line and r"<br>" not in line: #Log lines should be over multiple lines
+            pytest.fail("Failed to find required substrings in logs")
+
+
+def test_directory(server):
+    host_address = server[0]
+    log = server[1]["directory"]
     request_address = f"{host_address}/log/directory"
 
     response = make_request(request_address)
@@ -103,14 +174,14 @@ def test_directory(server, yaml):
     for directory_item in directory_contents:
         assert directory_item in response.text
 
-def test_sub_directory(server, yaml):
-    host_address = yaml[0]
-    log = yaml[1]["directory"]
-    request_address = f"{host_address}/log/directory/directory"
+def test_directory(server):
+    host_address = server[0]
+    log = server[1]["directory"]
+    request_address = f"{host_address}/log/directory/inside"
 
     response = make_request(request_address)
     
-    directory_contents = os.listdir(log.log_file + "/directory")
+    directory_contents = os.listdir(log.log_file + "/inside")
 
     for directory_item in directory_contents:
         assert directory_item in response.text

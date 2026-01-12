@@ -10,30 +10,35 @@ from log import Log
 from html_builder import build_index, build_dir_page, build_log_page
 
 class Server:
-    def __init__(self):
-        yaml_file="./config.yaml"
-        if not os.path.isfile(yaml_file):
-            print(f"No {yaml_file} file.\nPlease create a {yaml_file} file and fill it as per the README")
-            exit(1)
-        try:
-            with open (yaml_file, "r") as file:
-                data = yaml.safe_load(file)
-                rawhostaddress = data["hostaddress"]
-                rawhostport = data["hostport"]
-                try:
-                    hostport = int(rawhostport)
-                except ValueError:
-                    print(f"String \"{rawhostport}\" cannot be converted to INT")
-                    exit(1)
-                self.hostaddress = (rawhostaddress, hostport)
-                raw_logs = data["logs"]
-                self.logs = {}
-                for raw_log in raw_logs:
-                    log = Log(raw_log)
-                    self.logs[log.name] = log
-        except yaml.YAMLError as e:
-            print(f"Error with YAML: {e}")
-            exit(1)
+    def __init__(self, logs=None, host_address=None):
+        if not all((logs, host_address)):
+            yaml_file="./config.yaml"
+            if not os.path.isfile(yaml_file):
+                print(f"No {yaml_file} file.\nPlease create a {yaml_file} file and fill it as per the README")
+                exit(1)
+            try:
+                with open (yaml_file, "r") as file:
+                    data = yaml.safe_load(file)
+                    rawhostaddress = data["hostaddress"]
+                    rawhostport = data["hostport"]
+                    try:
+                        hostport = int(rawhostport)
+                    except ValueError:
+                        print(f"String \"{rawhostport}\" cannot be converted to INT")
+                        exit(1)
+                    self.hostaddress = (rawhostaddress, hostport)
+                    raw_logs = data["logs"]
+                    self.logs = {}
+                    for raw_log in raw_logs:
+                        log = Log(raw_log)
+                        self.logs[log.name] = log
+            except yaml.YAMLError as e:
+                print(f"Error with YAML: {e}")
+                exit(1)
+        else: # For pytest
+            self.hostaddress = host_address
+            self.logs = logs
+
 
     def create_json(self, path):
         log_index = path[2]
