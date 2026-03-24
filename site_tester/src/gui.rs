@@ -247,6 +247,6 @@ pub fn run_gui() -> eframe::Result<()> {
     eframe::run_native(
         "Site Tester GUI",
         options,
-        Box::new(|_cc| Box::new(SiteTesterApp::default())),
+        Box::new(|_cc| Ok(Box::new(SiteTesterApp::default()))),
     )
 }
