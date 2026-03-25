@@ -34,6 +34,7 @@ pub fn get_client(timeout: u16, ignore_ssl: bool) -> Arc<blocking::Client> {
     let client = blocking::Client::builder()
         .timeout(Duration::from_millis(timeout.into()))
         .danger_accept_invalid_certs(ignore_ssl)
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         .build()
         .expect("Failed to build client");
 
@@ -72,6 +73,7 @@ where
             let (out, err) = output_clone;
             let mut thread_url = Arc::clone(&url_arc);
             for j in 0..requests_for_this_thread {
+                out(thread_url.to_string());
                 if cancel_flag.load(Ordering::SeqCst) {
                     break;
                 }
