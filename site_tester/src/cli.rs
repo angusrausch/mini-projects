@@ -78,7 +78,8 @@ pub fn run_cli() {
         (ok_closure, err_closure),
         Arc::clone(&times),
         Arc::clone(&cancel_flag),
-        config.method
+        config.method,
+        config.follow_links
     );
 
     let mut last_print: std::time::Instant = std::time::Instant::now();
@@ -237,6 +238,9 @@ fn menu(config: &Config) {
     }
     if config.ignore_ssl {
         message.push_str(&format!("{YELLOW}Ignoring any SSL errors{RESET}\n"));
+    }
+    if config.follow_links {
+        message.push_str(&format!("{YELLOW}Following Random links when available{RESET}\n"));
     }
 
     println!("{}", message);

@@ -1,6 +1,9 @@
 use reqwest::blocking;
-use std::{fmt::format, sync::{Arc, Mutex}, time::{Duration, Instant}};
+use std::{sync::{Arc, Mutex}, time::{Duration, Instant}};
 use std::sync::atomic::{AtomicBool, Ordering};
+use scraper::{Html, Selector};
+use rand::prelude::*;
+use url::Url;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Method {
@@ -47,6 +50,7 @@ pub fn make_requests<O, E>(
     times: Arc<Mutex<Vec<u32>>>,
     cancel_flag: Arc<AtomicBool>,
     method: Method,
+    follow_links: bool
 )
 where
     O: Fn(String) + Send + Sync + 'static + Clone,
@@ -66,6 +70,7 @@ where
 
         std::thread::spawn(move || {
             let (out, err) = output_clone;
+            let mut thread_url = Arc::clone(&url_arc);
             for j in 0..requests_for_this_thread {
                 if cancel_flag.load(Ordering::SeqCst) {
                     break;
@@ -74,8 +79,8 @@ where
                 let start = Instant::now();
 
                 let resp = match method {
-                    Method::Post => client_arc.post(url_arc.as_str()).send(),
-                    Method::Get => client_arc.get(url_arc.as_str()).send(),
+                    Method::Post => client_arc.post(thread_url.as_str()).send(),
+                    Method::Get => client_arc.get(thread_url.as_str()).send(),
                 };
 
                 let duration = start.elapsed().as_micros() as u32;
@@ -83,14 +88,28 @@ where
 
                 if resp.is_ok() {
                     let response = resp.unwrap();
-                    if response.status() == 509 {
-                        out(format!("Website bandwidth limit reached"));
+                    let status = response.status();
+                    let body = response
+                        .text()
+                        .unwrap_or_else(|e| format!("Failed to read body: {:?}", e));
+                    if status.as_u16() == 509 {
+                        out("Website bandwidth limit reached".to_string());
+                    }
+                    if follow_links {
+                        if let Some(next) = get_href(body, &url_arc, &thread_url) {
+                            thread_url = Arc::new(next);
+                        } else {
+                            thread_url = Arc::clone(&url_arc);
+                        }
                     }
                     if verbose {
-                        out(format!("Status code: {}", response.status()));
+                        out(format!("Status code: {}", status));
                     }
                     times_guard[idx as usize] = duration;
                 } else {
+                    if follow_links {
+                        thread_url = Arc::clone(&url_arc);
+                    }
                     if verbose {
                         let e = resp.unwrap_err();
                         let err_msg = format!(
@@ -131,4 +150,40 @@ pub fn get_average(times: &Vec<u32>) -> (Duration, u32, Duration) {
     let max = Duration::from_micros(max as u64);
 
     (average_value, fails, max)
+}
+
+fn get_href(body: String, base_url: &Arc<String>, thread_url: &Arc<String>) -> Option<String> {
+    let base = Url::parse(&base_url).unwrap();
+
+    let html = Html::parse_document(&body);
+    let href_selector = Selector::parse("a").unwrap();
+    
+    let mut hrefs = Vec::new();
+
+
+for element in html.select(&href_selector) {
+    if let Some(href) = element.value().attr("href") {
+        if href.starts_with("mailto:") {
+            continue;
+        } else if href == thread_url.as_str() {
+            continue;
+        }
+
+        let parsed = if let Ok(url) = Url::parse(href) {
+            url
+        } else if let Ok(joined) = base.join(href) {
+            joined
+        } else {
+            continue;
+        };
+
+        if parsed.domain() == base.domain() {
+            hrefs.push(parsed.to_string());
+        }
+    }
+}
+
+    let mut rng = rand::rng(); 
+    
+    hrefs.choose(&mut rng).cloned() 
 }

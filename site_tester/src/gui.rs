@@ -29,6 +29,7 @@ pub struct SiteTesterApp {
     cancel_flag: Arc<AtomicBool>,
     logs: Arc<Mutex<VecDeque<String>>>,
     method: Method,
+    follow_links: bool
 }
 
 impl Default for SiteTesterApp {
@@ -47,6 +48,7 @@ impl Default for SiteTesterApp {
             cancel_flag: Arc::new(AtomicBool::new(false)),
             logs: Arc::new(Mutex::new(VecDeque::with_capacity(LOGS_MAX_CAPACITY))),
             method: Method::Get,
+            follow_links: false,
         }
     }
 }
@@ -74,7 +76,7 @@ impl eframe::App for SiteTesterApp {
                 ui.label("Timeout (seconds):");
                 ui.add(egui::DragValue::new(&mut self.timeout));
                 ui.label("Method:");
-                egui::ComboBox::from_id_source("method_combo")
+                egui::ComboBox::from_id_salt("method_combo")
                     .selected_text(match self.method {
                         Method::Get => "GET",
                         Method::Post => "POST",
@@ -84,11 +86,14 @@ impl eframe::App for SiteTesterApp {
                         ui.selectable_value(&mut self.method, Method::Post, "POST");
                     });
             });
+            ui.horizontal(|ui| {
+                ui.checkbox(&mut self.follow_links, "Follow Local Links")
+            });
 
             ui.add_space(8.0);
             if !self.message.is_empty() {
                 let lines: Vec<&str> = self.message.split('\n').collect();
-                for (i, line) in lines.iter().enumerate() {
+                for (_i, line) in lines.iter().enumerate() {
                     if line.contains("Completed a total") {
                         ui.label(
                             egui::RichText::new(*line)
@@ -200,6 +205,7 @@ impl eframe::App for SiteTesterApp {
                     Arc::clone(&self.times),
                     Arc::clone(&self.cancel_flag),
                     self.method,
+                    self.follow_links
                 );
             }
 
