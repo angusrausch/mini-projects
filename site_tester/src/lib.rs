@@ -51,12 +51,14 @@ pub fn make_requests<O, E>(
     times: Arc<Mutex<Vec<u32>>>,
     cancel_flag: Arc<AtomicBool>,
     method: Method,
-    follow_links: bool
+    follow_links: bool,
+    infinite: bool
 )
 where
     O: Fn(String) + Send + Sync + 'static + Clone,
     E: Fn(String) + Send + Sync + 'static + Clone,
 {
+
     let number_per_thread = number / threads;
     let remainder = number % threads;
 
@@ -72,22 +74,33 @@ where
         std::thread::spawn(move || {
             let (out, err) = output_clone;
             let mut thread_url = Arc::clone(&url_arc);
-            for j in 0..requests_for_this_thread {
-                out(thread_url.to_string());
+            for j in 0.. {
+                if !infinite && j >= requests_for_this_thread {
+                    break; // Only exit if infinite is not set
+                }
                 if cancel_flag.load(Ordering::SeqCst) {
                     break;
                 }
                 let idx = start_idx + j;
                 let start = Instant::now();
-
+                
                 let resp = match method {
                     Method::Post => client_arc.post(thread_url.as_str()).send(),
                     Method::Get => client_arc.get(thread_url.as_str()).send(),
                 };
-
+                
                 let duration = start.elapsed().as_micros() as u32;
-                let mut times_guard = times_arc.lock().unwrap();
-
+                if !infinite {
+                    if let Ok(mut times_guard) = times_arc.lock() {
+                        if (idx as usize) < times_guard.len() {
+                            if resp.is_ok() {
+                                times_guard[idx as usize] = duration;
+                            } else {
+                                times_guard[idx as usize] = u32::MAX;
+                            }
+                        }
+                    }
+                }
                 if resp.is_ok() {
                     let response = resp.unwrap();
                     let status = response.status();
@@ -107,7 +120,6 @@ where
                     if verbose {
                         out(format!("Status code: {}", status));
                     }
-                    times_guard[idx as usize] = duration;
                 } else {
                     if follow_links {
                         thread_url = Arc::clone(&url_arc);
@@ -125,7 +137,6 @@ where
                         );
                         err(err_msg);
                     }
-                    times_guard[idx as usize] = u32::MAX; 
                 }
             }
         });

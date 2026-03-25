@@ -29,7 +29,8 @@ pub struct SiteTesterApp {
     cancel_flag: Arc<AtomicBool>,
     logs: Arc<Mutex<VecDeque<String>>>,
     method: Method,
-    follow_links: bool
+    follow_links: bool,
+    infinite: bool
 }
 
 impl Default for SiteTesterApp {
@@ -49,6 +50,7 @@ impl Default for SiteTesterApp {
             logs: Arc::new(Mutex::new(VecDeque::with_capacity(LOGS_MAX_CAPACITY))),
             method: Method::Get,
             follow_links: false,
+            infinite: false
         }
     }
 }
@@ -87,7 +89,8 @@ impl eframe::App for SiteTesterApp {
                     });
             });
             ui.horizontal(|ui| {
-                ui.checkbox(&mut self.follow_links, "Follow Local Links")
+                ui.checkbox(&mut self.follow_links, "Follow Local Links");
+                ui.checkbox(&mut self.infinite, "Infinite");
             });
 
             ui.add_space(8.0);
@@ -205,7 +208,8 @@ impl eframe::App for SiteTesterApp {
                     Arc::clone(&self.times),
                     Arc::clone(&self.cancel_flag),
                     self.method,
-                    self.follow_links
+                    self.follow_links,
+                    self.infinite
                 );
             }
 

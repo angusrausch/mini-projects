@@ -27,6 +27,7 @@ pub struct Config {
     pub timeout: u16, // store as milliseconds
     pub verbose: bool,
     pub skip_confirm: bool,
+    pub infinite: bool
 }
 
 impl Config {
@@ -47,6 +48,7 @@ impl Config {
             timeout: timeout_ms,
             verbose: matches.get_flag("verbose"),
             skip_confirm: matches.get_flag("skip-confirm"),
+            infinite: matches.get_flag("infinite"),
         }
     }
 }
@@ -79,7 +81,8 @@ pub fn run_cli() {
         Arc::clone(&times),
         Arc::clone(&cancel_flag),
         config.method,
-        config.follow_links
+        config.follow_links,
+        config.infinite
     );
 
     let mut last_print: std::time::Instant = std::time::Instant::now();
@@ -194,6 +197,12 @@ fn get_arguments() -> ArgMatches {
                 .long("skip-confirm")
                 .help("None interactive. Skips confirm step")
                 .action(ArgAction::SetTrue)
+        )
+        .arg(
+            Arg::new("infinite")
+                .long("infinite")
+                .help("Infinite requests")
+                .action(ArgAction::SetTrue),
         )
         .get_matches()
 }
